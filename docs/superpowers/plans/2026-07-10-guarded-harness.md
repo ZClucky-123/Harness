@@ -533,7 +533,7 @@ git commit -m "feat: add guarded tool dispatcher"
 - Produces: `AgentLoop.run(task: str) -> SessionState`
 - Produces: `AgentLoop.resume_after_approval(approval_id: str, approved: bool) -> SessionState`
 
-- [ ] **Step 1: Write failing integration tests**
+- [x] **Step 1: Write failing integration tests**
 
 Create `tests/integration/test_loop_guardrail.py`:
 
@@ -582,13 +582,13 @@ def test_feedback_changes_next_mock_action(tmp_path: Path):
     assert any("command_error" in str(event.payload) for event in events)
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `pytest tests/integration/test_loop_guardrail.py tests/integration/test_loop_feedback.py -q`
 
 Expected: FAIL with missing `AgentLoop`.
 
-- [ ] **Step 3: Implement loop**
+- [x] **Step 3: Implement loop**
 
 Implement `AgentLoop.run()`:
 
@@ -605,13 +605,13 @@ Implement `MockLLM` as an ordered response queue and store received contexts for
 
 Implement `openai_compatible.py` as optional provider using `httpx`, reading key through credential layer later.
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `pytest tests/integration/test_loop_guardrail.py tests/integration/test_loop_feedback.py -q`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/guarded_harness/llm src/guarded_harness/core/loop.py tests/integration
