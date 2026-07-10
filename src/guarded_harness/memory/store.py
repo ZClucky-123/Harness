@@ -131,6 +131,39 @@ class SQLiteStore:
                        (session_id, task, str(workspace), SessionStatus.RUNNING.value, 0, None, timestamp, timestamp))
         return SessionState(session_id, task, SessionStatus.RUNNING, Path(workspace))
 
+    def get_session(self, session_id: str) -> SessionState:
+        with self._connect() as db:
+            row = db.execute("SELECT * FROM sessions WHERE id = ?", (session_id,)).fetchone()
+        if row is None:
+            raise KeyError(session_id)
+        return SessionState(
+            row["id"],
+            row["task"],
+            SessionStatus(row["status"]),
+            Path(row["workspace"]),
+            row["step_count"],
+            row["pending_approval_id"],
+        )
+
+    def update_session(self, session: SessionState) -> None:
+        with self._connect() as db:
+            result = db.execute(
+                """
+                UPDATE sessions
+                SET status = ?, step_count = ?, pending_approval_id = ?, updated_at = ?
+                WHERE id = ?
+                """,
+                (
+                    session.status.value,
+                    session.step_count,
+                    session.pending_approval_id,
+                    _now(),
+                    session.id,
+                ),
+            )
+        if result.rowcount == 0:
+            raise KeyError(session.id)
+
     def append_audit(self, session_id: str, event_type: str, payload: dict) -> None:
         with self._connect() as db:
             db.execute("INSERT INTO audit_events VALUES (?, ?, ?, ?, ?)",
