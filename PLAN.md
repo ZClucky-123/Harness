@@ -343,7 +343,7 @@ git commit -m "feat: add sqlite state store"
 - Produces: `PolicyDecision(decision: DecisionType, risk_level: str, reason: str)`
 - Produces: `Guardrail(workspace_root: Path).evaluate(action: Action) -> PolicyDecision`
 
-- [ ] **Step 1: Write failing guardrail tests**
+- [x] **Step 1: Write failing guardrail tests**
 
 Create `tests/unit/test_guardrail.py`:
 
@@ -391,13 +391,13 @@ def test_allow_write_inside_workspace(tmp_path: Path):
     assert decision.decision == DecisionType.ALLOW
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `pytest tests/unit/test_guardrail.py -q`
 
 Expected: FAIL with missing `Guardrail`.
 
-- [ ] **Step 3: Implement policy rules**
+- [x] **Step 3: Implement policy rules**
 
 Implement:
 
@@ -406,13 +406,13 @@ Implement:
 - approval for `git push`, `pip install`, `npm install`, `twine upload`, `docker push`, file deletion inside workspace, `.env` modification
 - path resolution with `Path.resolve()` and prefix check against `workspace_root.resolve()`
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `pytest tests/unit/test_guardrail.py -q`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/guarded_harness/governance/policies.py src/guarded_harness/governance/guardrail.py tests/unit/test_guardrail.py
