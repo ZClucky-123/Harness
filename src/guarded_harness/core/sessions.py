@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field
 from enum import Enum
+from pathlib import Path
 from typing import Any
 
 
@@ -17,6 +18,7 @@ class SessionState:
     id: str
     task: str
     status: SessionStatus
+    workspace: Path | None = None
     step_count: int = 0
     pending_approval_id: str | None = None
     observations: list[Any] = field(default_factory=list)

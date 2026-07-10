@@ -10,3 +10,4 @@ build/
 .env
 *.sqlite3
 .guarded-harness/
+.superpowers/
