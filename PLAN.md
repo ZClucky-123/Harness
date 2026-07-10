@@ -227,7 +227,7 @@ git commit -m "feat: scaffold core action models"
 - Produces: `resolve_approval(approval_id: str, approved: bool) -> ApprovalRequest`
 - Produces: `add_memory(kind: str, content: str, tags: list[str]) -> MemoryEntry`
 
-- [ ] **Step 1: Write failing persistence tests**
+- [x] **Step 1: Write failing persistence tests**
 
 Create `tests/unit/test_store.py`:
 
@@ -269,13 +269,13 @@ def test_memory_round_trip(tmp_path: Path):
     assert entries[0].content == "Never edit .env without approval"
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `pytest tests/unit/test_store.py -q`
 
 Expected: FAIL with `ModuleNotFoundError` or missing `SQLiteStore`.
 
-- [ ] **Step 3: Implement SQLite schema and dataclasses**
+- [x] **Step 3: Implement SQLite schema and dataclasses**
 
 Implement tables in `SQLiteStore._init_schema()`:
 
@@ -315,13 +315,13 @@ CREATE TABLE IF NOT EXISTS memory_entries (
 );
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `pytest tests/unit/test_store.py -q`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/guarded_harness/governance src/guarded_harness/memory src/guarded_harness/core/sessions.py tests/unit/test_store.py
