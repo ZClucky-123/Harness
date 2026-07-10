@@ -435,7 +435,7 @@ git commit -m "feat: add deterministic guardrail policies"
 - Produces: `ToolDispatcher(workspace_root: Path, test_command: list[str])`
 - Produces: `dispatch(action: Action) -> Observation`
 
-- [ ] **Step 1: Write failing dispatcher tests**
+- [x] **Step 1: Write failing dispatcher tests**
 
 Create `tests/unit/test_dispatcher.py`:
 
@@ -476,13 +476,13 @@ def test_run_shell_command_error(tmp_path: Path):
     assert obs.feedback_kind == FeedbackKind.COMMAND_ERROR
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `pytest tests/unit/test_dispatcher.py -q`
 
 Expected: FAIL with missing dispatcher.
 
-- [ ] **Step 3: Implement tools**
+- [x] **Step 3: Implement tools**
 
 Implement file read/write with workspace path resolution.
 
@@ -501,13 +501,13 @@ subprocess.run(
 
 Return `Observation(success=returncode == 0, feedback_kind=...)`.
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `pytest tests/unit/test_dispatcher.py -q`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/guarded_harness/tools tests/unit/test_dispatcher.py
