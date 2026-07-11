@@ -32,7 +32,7 @@
 
 | 命令 | 结果 |
 | --- | --- |
-| `pytest tests/unit tests/integration/test_loop_guardrail.py tests/integration/test_loop_feedback.py tests/integration/test_loop_failures.py tests/integration/test_hitl.py -q` | PASS，59 passed（Python 3.10.3）。 |
+| `pytest tests/unit tests/integration/test_loop_guardrail.py tests/integration/test_loop_feedback.py tests/integration/test_loop_failures.py tests/integration/test_hitl.py -q` | PASS，60 passed（Python 3.10.3）。 |
 | `pytest` | 未完成：收集 CLI/Web 测试时缺少 `typer` 与 `fastapi`，共 2 个 `ModuleNotFoundError`。 |
 | `python -m compileall -q src` | PASS，退出码 0。 |
 | `git diff --check` | PASS，退出码 0；仅提示 Git 将把 README 的 LF 转为 CRLF。 |
