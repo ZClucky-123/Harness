@@ -221,6 +221,7 @@ def _is_safe_git_argv(arguments: list[str]) -> bool:
         or argument == "--no-pager"
         or argument.startswith("--pager=")
         or argument.startswith("--exec-path")
+        or argument == "--config"
         or argument.startswith("--config=")
         or argument == "-c"
         for argument in arguments

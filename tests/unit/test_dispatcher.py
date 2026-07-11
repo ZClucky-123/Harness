@@ -7,6 +7,7 @@ import guarded_harness.tools.tests as test_tools
 from guarded_harness.core.actions import Action, ActionType
 from guarded_harness.core.observations import FeedbackKind
 from guarded_harness.tools.dispatcher import ToolDispatcher
+from guarded_harness.tools.shell import run_shell
 
 
 def test_write_and_read_file(tmp_path: Path):
@@ -51,7 +52,8 @@ def test_run_shell_executes_structured_argv_without_shell(tmp_path: Path, monkey
     obs = dispatcher.dispatch(Action(ActionType.RUN_SHELL, {"command": "git status --bad-option"}))
 
     assert obs.success is True
-    assert calls[0][0][0] == ["git", "status", "--bad-option"]
+    assert calls[0][0][0][:2] == ["git", "-c"]
+    assert calls[0][0][0][-2:] == ["status", "--bad-option"]
     assert calls[0][1]["shell"] is False
     assert calls[0][1]["cwd"] == tmp_path.resolve()
 
@@ -203,11 +205,40 @@ def test_dispatcher_denies_external_helper_options_without_execution(tmp_path: P
         lambda *args, **kwargs: calls.append((args, kwargs)),
     )
 
-    for command in ("rg --pre=./workspace-script pattern", "git diff --ext-diff", "git diff --textconv"):
+    for command in (
+        "rg --pre=./workspace-script pattern",
+        "git diff --ext-diff",
+        "git diff --textconv",
+        "git diff --config",
+    ):
         obs = dispatcher.dispatch(Action(ActionType.RUN_SHELL, {"command": command}))
 
         assert obs.success is False
         assert obs.feedback_kind == FeedbackKind.POLICY_DENIED
+    assert calls == []
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "rg --pre=./workspace-script pattern",
+        "git diff --ext-diff",
+        "git diff --textconv",
+        "git --pager=./workspace-script diff",
+        "git -c core.fsmonitor=./workspace-script status",
+    ],
+)
+def test_run_shell_directly_rejects_external_helper_options(tmp_path: Path, monkeypatch, command: str):
+    calls = []
+    monkeypatch.setattr(
+        "guarded_harness.tools.shell.subprocess.run",
+        lambda *args, **kwargs: calls.append((args, kwargs)),
+    )
+
+    obs = run_shell(tmp_path, command)
+
+    assert obs.success is False
+    assert obs.feedback_kind == FeedbackKind.POLICY_DENIED
     assert calls == []
 
 
@@ -216,6 +247,9 @@ def test_run_shell_sanitizes_safe_helper_configuration(tmp_path: Path, monkeypat
     calls = []
     monkeypatch.setenv("RIPGREP_CONFIG_PATH", str(tmp_path / "ripgreprc"))
     monkeypatch.setenv("GIT_EXTERNAL_DIFF", str(tmp_path / "helper"))
+    monkeypatch.setenv("GIT_CONFIG_COUNT", "1")
+    monkeypatch.setenv("GIT_CONFIG_KEY_0", "core.fsmonitor")
+    monkeypatch.setenv("GIT_CONFIG_VALUE_0", str(tmp_path / "helper"))
 
     def record_execution(*args, **kwargs):
         calls.append((args, kwargs))
@@ -230,9 +264,28 @@ def test_run_shell_sanitizes_safe_helper_configuration(tmp_path: Path, monkeypat
     git_argv, git_kwargs = calls[1][0][0], calls[1][1]
     assert rg_argv == ["rg", "--no-config", "pattern"]
     assert "RIPGREP_CONFIG_PATH" not in rg_kwargs["env"]
-    assert git_argv == ["git", "diff", "--no-ext-diff", "--no-textconv"]
+    assert git_argv == [
+        "git",
+        "-c",
+        "core.fsmonitor=false",
+        "-c",
+        "core.pager=cat",
+        "-c",
+        "diff.external=",
+        "-c",
+        "pager.diff=false",
+        "-c",
+        "pager.show=false",
+        "diff",
+        "--no-ext-diff",
+        "--no-textconv",
+    ]
     assert git_kwargs["env"]["GIT_EXTERNAL_DIFF"] == ""
     assert git_kwargs["env"]["GIT_CONFIG_NOSYSTEM"] == "1"
+    assert "GIT_CONFIG_COUNT" not in git_kwargs["env"]
+    assert "GIT_CONFIG_KEY_0" not in git_kwargs["env"]
+    assert "GIT_CONFIG_VALUE_0" not in git_kwargs["env"]
+    assert git_kwargs["env"]["GIT_OPTIONAL_LOCKS"] == "0"
     assert git_kwargs["env"]["GIT_PAGER"] == "cat"
 
 
