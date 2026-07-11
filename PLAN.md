@@ -803,7 +803,7 @@ git commit -m "feat: add cli demos and credentials"
 - Produces: `create_app(store_path: Path | None = None) -> FastAPI`
 - Produces: routes `GET /`, `POST /sessions`, `GET /sessions/{id}`, `GET /approvals`, `POST /approvals/{id}/approve`, `POST /approvals/{id}/deny`
 
-- [ ] **Step 1: Write failing WebUI tests**
+- [x] **Step 1: Write failing WebUI tests**
 
 Create `tests/integration/test_web.py`:
 
@@ -831,13 +831,13 @@ def test_approvals_page_loads():
     assert "Approvals" in response.text
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `pytest tests/integration/test_web.py -q`
 
 Expected: FAIL with missing web app.
 
-- [ ] **Step 3: Implement minimal WebUI**
+- [x] **Step 3: Implement minimal WebUI**
 
 Implement simple server-rendered HTML pages:
 
@@ -847,13 +847,13 @@ Implement simple server-rendered HTML pages:
 
 Do not add a large frontend build system.
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `pytest tests/integration/test_web.py -q`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/guarded_harness/web tests/integration/test_web.py
