@@ -37,3 +37,15 @@
 | `python -m compileall -q src` | PASS，退出码 0。 |
 | `git diff --check` | PASS，退出码 0；仅提示 Git 将把 README 的 LF 转为 CRLF。 |
 | `docker version --format '{{.Server.Version}}'` | 未完成：Docker daemon 不可用，`//./pipe/docker_engine` 不存在，且 Docker 配置文件访问被拒绝；因此未运行 `docker build`。 |
+
+## 最终复审修复
+
+- 使用 `receiving-code-review`、`systematic-debugging`、`test-driven-development` 与
+  `verification-before-completion` 复核最终阻塞项。
+- 先用失败测试复现 shell command substitution/换行/反引号/重定向/管道绕过和字符串
+  `shell=True` 执行，再改为共享 argv 解析、`shell=False` 与 realpath 边界校验。
+- 先用失败测试复现审批 action 在展示模型中的 secret 泄露，再引入统一 redaction，Web/CLI 只读取脱敏 action。
+- 将审批与 session 的恢复更新放入同一 SQLite 事务，引入 `executing`、`executed`、`failed` 执行状态；
+  跨进程恢复明确在处理动作后结束，不声称继续 live provider loop。
+- 实现 `remember` action 的字段验证、memory 持久化、observation 与 audit。
+- 当前机器仍缺 FastAPI/Typer；涉及 Web/CLI 的新增测试已提交，但只能在 GitLab Runner 或安装完整依赖后执行。

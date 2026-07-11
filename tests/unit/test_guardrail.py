@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 from guarded_harness.core.actions import Action, ActionType
 from guarded_harness.governance.guardrail import Guardrail
 from guarded_harness.governance.policies import DecisionType
@@ -232,3 +234,38 @@ def test_require_approval_for_shell_env_file_writers(tmp_path: Path):
 
     for command in ("tee .env", "Set-Content .env value", "cp source .env"):
         assert guardrail.evaluate(Action(ActionType.RUN_SHELL, {"command": command})).decision == DecisionType.NEEDS_APPROVAL
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "echo $(rm file)",
+        "echo `rm file`",
+        "echo safe\nrm file",
+        "echo safe > output.txt",
+        "echo safe | cat",
+        "echo safe && git status",
+    ],
+)
+def test_shell_control_syntax_is_never_allowlisted(tmp_path: Path, command: str):
+    decision = Guardrail(tmp_path).evaluate(Action(ActionType.RUN_SHELL, {"command": command}))
+
+    assert decision.decision == DecisionType.NEEDS_APPROVAL
+    assert "shell syntax" in decision.reason
+
+
+def test_deny_shell_path_through_symlink_outside_workspace(tmp_path: Path):
+    outside = tmp_path.parent / "outside-shell-target"
+    outside.mkdir(exist_ok=True)
+    link = tmp_path / "linked-outside"
+    try:
+        link.symlink_to(outside, target_is_directory=True)
+    except OSError as exc:
+        pytest.skip(f"symlinks unavailable: {exc}")
+
+    decision = Guardrail(tmp_path).evaluate(
+        Action(ActionType.RUN_SHELL, {"command": "cat linked-outside/secret.txt"})
+    )
+
+    assert decision.decision == DecisionType.DENY
+    assert "outside workspace" in decision.reason

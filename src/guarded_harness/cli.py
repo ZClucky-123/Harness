@@ -101,12 +101,13 @@ def demo_hitl(wait_only: bool = typer.Option(False, "--wait-only", help="Leave t
 
 @approvals_app.command("list")
 def list_approvals() -> None:
-    approvals = _store().list_pending_approvals()
+    approvals = _store().list_unfinished_approvals()
     if not approvals:
         typer.echo("no pending approvals")
         return
     for approval in approvals:
-        typer.echo(f"{approval.id} pending: {approval.reason}")
+        typer.echo(f"{approval.id} {approval.status}: {approval.reason}")
+        typer.echo(approval.redacted_action_json)
 
 
 def _resume_approval(approval_id: str, approved: bool) -> None:
@@ -115,10 +116,14 @@ def _resume_approval(approval_id: str, approved: bool) -> None:
     session = store.get_session(approval.session_id)
     loop = AgentLoop.for_workspace(
         session.workspace or _workspace(),
-        MockLLM([json.dumps({"type": "finish", "message": "approval resolved"})]),
+        MockLLM([]),
         store,
     )
-    resumed = loop.resume_after_approval(approval_id, approved=approved)
+    resumed = loop.resume_after_approval(
+        approval_id,
+        approved=approved,
+        continue_after_resolution=False,
+    )
     _print_events(loop, resumed.id)
     typer.echo(f"status={resumed.status.value}")
 
@@ -170,4 +175,6 @@ def run_task(task: str, live: bool = typer.Option(False, "--live", help="Use the
 
 @app.command("serve")
 def serve() -> None:
-    typer.echo("WebUI is not available yet. Use the CLI demos and approvals commands for now.")
+    import uvicorn
+
+    uvicorn.run("guarded_harness.web.app:create_app", factory=True, host="127.0.0.1", port=8000)

@@ -51,6 +51,7 @@ def test_approved_pending_action_executes_and_persists_finished_session(tmp_path
     assert (tmp_path / ".env").read_text() == "MODE=prod"
     assert any(event.event_type == "approval_approved" for event in events)
     assert any(event.event_type == "resumed_tool_result" for event in events)
+    assert loop.store.get_approval(approval.id).status == "executed"
 
 
 def test_denied_approval_feeds_back_and_finishes(tmp_path: Path):
@@ -89,3 +90,54 @@ def test_resolved_approval_cannot_resume_action_again(tmp_path: Path):
 
     with pytest.raises(ValueError, match="already resolved"):
         loop.resume_after_approval(approval.id, approved=True)
+
+
+def test_cross_process_approval_recovery_executes_action_then_ends(tmp_path: Path):
+    loop = make_loop(tmp_path, ['{"type":"write_file","path":".env","content":"MODE=prod"}'])
+    waiting = loop.run("configure production")
+
+    session = loop.resume_after_approval(
+        waiting.pending_approval_id,
+        approved=True,
+        continue_after_resolution=False,
+    )
+
+    assert session.status == SessionStatus.FINISHED
+    assert (tmp_path / ".env").read_text() == "MODE=prod"
+    assert any(event.event_type == "approval_recovery_ended" for event in loop.store.list_audit(session.id))
+
+
+def test_remember_action_persists_memory_and_audit(tmp_path: Path):
+    loop = make_loop(
+        tmp_path,
+        [
+            '{"type":"remember","kind":"decision","content":"Use pytest","tags":["testing","policy"]}',
+            '{"type":"finish","message":"remembered"}',
+        ],
+    )
+
+    session = loop.run("remember convention")
+
+    memories = loop.store.list_memory(limit=5)
+    assert session.status == SessionStatus.FINISHED
+    assert memories[0].kind == "decision"
+    assert memories[0].content == "Use pytest"
+    assert memories[0].tags == ["testing", "policy"]
+    assert any(event.event_type == "memory_added" for event in loop.store.list_audit(session.id))
+
+
+def test_invalid_remember_action_becomes_feedback(tmp_path: Path):
+    loop = make_loop(
+        tmp_path,
+        [
+            '{"type":"remember","kind":"","content":"Use pytest","tags":"testing"}',
+            '{"type":"finish","message":"corrected"}',
+        ],
+    )
+
+    session = loop.run("remember convention")
+
+    assert session.status == SessionStatus.FINISHED
+    assert loop.store.list_memory(limit=5) == []
+    assert loop.llm.contexts[1]["observations"][0]["feedback_kind"] == "command_error"
+    assert "remember" in loop.llm.contexts[1]["observations"][0]["message"]

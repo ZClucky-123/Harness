@@ -52,7 +52,12 @@ class AgentLoop:
         self.store.append_audit(session.id, "session_started", {"task": task})
         return self._continue(session)
 
-    def resume_after_approval(self, approval_id: str, approved: bool) -> SessionState:
+    def resume_after_approval(
+        self,
+        approval_id: str,
+        approved: bool,
+        continue_after_resolution: bool = True,
+    ) -> SessionState:
         approval = self.store.get_approval(approval_id)
         if approval.status != "pending":
             raise ValueError("approval is already resolved")
@@ -60,15 +65,17 @@ class AgentLoop:
         if session.status is not SessionStatus.WAITING_APPROVAL or session.pending_approval_id != approval.id:
             raise ValueError("session is not waiting for this approval")
 
-        resolved = self.store.resolve_approval(approval_id, approved)
-        session.status = SessionStatus.RUNNING
-        session.pending_approval_id = None
-        self._persist_session(session)
+        resolved, session = self.store.begin_approval_resolution(approval_id, approved)
 
-        if resolved.status == "approved":
+        if resolved.status == "executing":
             self.store.append_audit(session.id, "approval_approved", {"approval_id": resolved.id})
             action = parse_action(resolved.action_json)
-            self._record_observation(session, "resumed_tool_result", self.dispatcher.dispatch_approved(action))
+            try:
+                observation = self.dispatcher.dispatch_approved(action)
+            except Exception as exc:
+                observation = Observation(False, FeedbackKind.COMMAND_ERROR, message=f"approved action failed: {exc}")
+            self._record_observation(session, "resumed_tool_result", observation)
+            self.store.finalize_approval_execution(resolved.id, observation.success)
         else:
             self._record_observation(
                 session,
@@ -76,6 +83,15 @@ class AgentLoop:
                 Observation(False, FeedbackKind.APPROVAL_DENIED, message=resolved.reason),
                 {"approval_id": resolved.id},
             )
+        if not continue_after_resolution:
+            session.status = SessionStatus.FINISHED
+            self._persist_session(session)
+            self.store.append_audit(
+                session.id,
+                "approval_recovery_ended",
+                {"message": "approved action handled; provider loop was not resumed"},
+            )
+            return session
         return self._continue(session)
 
     def _continue(self, session: SessionState) -> SessionState:
@@ -104,6 +120,10 @@ class AgentLoop:
                 self._persist_session(session)
                 self.store.append_audit(session.id, "finished", {"message": action.payload.get("message", "")})
                 return session
+
+            if action.type is ActionType.REMEMBER:
+                self._handle_remember(session, action)
+                continue
 
             decision = self.guardrail.evaluate(action)
             self.store.append_audit(
@@ -158,6 +178,36 @@ class AgentLoop:
 
     def _persist_session(self, session: SessionState) -> None:
         self.store.update_session(session)
+
+    def _handle_remember(self, session: SessionState, action: Action) -> None:
+        kind = action.payload.get("kind")
+        content = action.payload.get("content")
+        tags = action.payload.get("tags", [])
+        if (
+            not isinstance(kind, str)
+            or not kind.strip()
+            or not isinstance(content, str)
+            or not content.strip()
+            or not isinstance(tags, list)
+            or any(not isinstance(tag, str) or not tag.strip() for tag in tags)
+        ):
+            self._record_observation(
+                session,
+                "memory_error",
+                Observation(
+                    False,
+                    FeedbackKind.COMMAND_ERROR,
+                    message="remember requires non-empty kind/content and a list of non-empty tags",
+                ),
+            )
+            return
+        entry = self.store.add_memory(kind.strip(), content.strip(), [tag.strip() for tag in tags])
+        self._record_observation(
+            session,
+            "memory_added",
+            Observation(True, FeedbackKind.TOOL_SUCCESS, message="memory stored", metadata={"memory_id": entry.id}),
+            {"kind": entry.kind, "tags": entry.tags},
+        )
 
     @staticmethod
     def _observation_payload(observation: Observation) -> dict[str, Any]:

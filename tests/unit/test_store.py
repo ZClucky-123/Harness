@@ -2,6 +2,7 @@ from pathlib import Path
 
 import pytest
 
+from guarded_harness.core.sessions import SessionStatus
 from guarded_harness.memory.store import SQLiteStore
 
 
@@ -111,3 +112,63 @@ def test_cannot_resolve_an_approval_twice(tmp_path: Path):
 
     with pytest.raises(ValueError, match="already resolved"):
         store.resolve_approval(approval.id, approved=False)
+
+
+def test_approval_exposes_only_redacted_action_for_display(tmp_path: Path):
+    store = SQLiteStore(tmp_path / "state.sqlite3", workspace_root=tmp_path)
+    session = store.create_session("configure", tmp_path)
+    action = (
+        '{"type":"write_file","path":".env","content":'
+        '"API_KEY=sk-live-secret\\nAuthorization=Bearer bearer-secret\\npassword=hunter2"}'
+    )
+
+    approval = store.create_approval(session.id, action, "approval required")
+
+    assert approval.action_json == action
+    assert "[REDACTED]" in approval.redacted_action_json
+    assert "sk-live-secret" not in approval.redacted_action_json
+    assert "bearer-secret" not in approval.redacted_action_json
+    assert "hunter2" not in approval.redacted_action_json
+
+
+def test_begin_approval_resolution_updates_approval_and_session_atomically(tmp_path: Path):
+    store = SQLiteStore(tmp_path / "state.sqlite3", workspace_root=tmp_path)
+    session = store.create_session("configure", tmp_path)
+    approval = store.create_approval(session.id, '{"type":"write_file","path":".env","content":"ok"}', "approval")
+    session.status = SessionStatus.WAITING_APPROVAL
+    session.pending_approval_id = approval.id
+    store.update_session(session)
+
+    executing, resumed = store.begin_approval_resolution(approval.id, approved=True)
+
+    assert executing.status == "executing"
+    assert resumed.status is SessionStatus.RUNNING
+    assert resumed.pending_approval_id is None
+
+
+def test_finalize_approval_execution_records_outcome(tmp_path: Path):
+    store = SQLiteStore(tmp_path / "state.sqlite3", workspace_root=tmp_path)
+    session = store.create_session("configure", tmp_path)
+    approval = store.create_approval(session.id, '{"type":"write_file","path":".env","content":"ok"}', "approval")
+    session.status = SessionStatus.WAITING_APPROVAL
+    session.pending_approval_id = approval.id
+    store.update_session(session)
+    store.begin_approval_resolution(approval.id, approved=True)
+
+    finalized = store.finalize_approval_execution(approval.id, succeeded=False)
+
+    assert finalized.status == "failed"
+
+
+def test_unfinished_approval_remains_visible_after_execution_starts(tmp_path: Path):
+    store = SQLiteStore(tmp_path / "state.sqlite3", workspace_root=tmp_path)
+    session = store.create_session("configure", tmp_path)
+    approval = store.create_approval(session.id, '{"type":"write_file","path":".env","content":"ok"}', "approval")
+    session.status = SessionStatus.WAITING_APPROVAL
+    session.pending_approval_id = approval.id
+    store.update_session(session)
+    store.begin_approval_resolution(approval.id, approved=True)
+
+    unfinished = store.list_unfinished_approvals()
+
+    assert [(item.id, item.status) for item in unfinished] == [(approval.id, "executing")]

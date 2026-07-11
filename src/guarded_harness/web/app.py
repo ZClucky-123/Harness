@@ -15,14 +15,15 @@ _PACKAGE_DIR = Path(__file__).resolve().parent
 _TEMPLATES = Jinja2Templates(directory=str(_PACKAGE_DIR / "templates"))
 
 
-def _store_for(store_path: Path | None) -> SQLiteStore:
+def _store_for(store_path: Path | None, workspace_root: Path | None) -> tuple[SQLiteStore, Path]:
+    root = Path(workspace_root).resolve() if workspace_root is not None else Path.cwd().resolve()
     if store_path is None:
-        workspace_root = Path.cwd().resolve()
-        database_path = workspace_root / ".guarded-harness" / "state.sqlite3"
+        database_path = root / ".guarded-harness" / "state.sqlite3"
     else:
         database_path = Path(store_path).resolve()
-        workspace_root = database_path.parent
-    return SQLiteStore(database_path, workspace_root=workspace_root)
+        if workspace_root is None:
+            root = database_path.parent
+    return SQLiteStore(database_path, workspace_root=root), root
 
 
 def _finish_loop(workspace_root: Path, store: SQLiteStore, message: str) -> AgentLoop:
@@ -33,9 +34,9 @@ def _finish_loop(workspace_root: Path, store: SQLiteStore, message: str) -> Agen
     )
 
 
-def create_app(store_path: Path | None = None) -> FastAPI:
+def create_app(store_path: Path | None = None, workspace_root: Path | None = None) -> FastAPI:
     """Create a local, deterministic WebUI backed by a workspace-local store."""
-    store = _store_for(store_path)
+    store, root = _store_for(store_path, workspace_root)
     app = FastAPI(title="Guarded Harness")
     app.mount("/static", StaticFiles(directory=str(_PACKAGE_DIR / "static")), name="static")
 
@@ -45,8 +46,7 @@ def create_app(store_path: Path | None = None) -> FastAPI:
 
     @app.post("/sessions")
     def start_session(task: str = Form(...)):
-        workspace_root = store.db_path.parent
-        session = _finish_loop(workspace_root, store, "mock run completed").run(task)
+        session = _finish_loop(root, store, "mock run completed").run(task)
         return RedirectResponse(url=f"/sessions/{session.id}", status_code=303)
 
     @app.get("/sessions/{session_id}")
@@ -66,7 +66,7 @@ def create_app(store_path: Path | None = None) -> FastAPI:
         return _TEMPLATES.TemplateResponse(
             request,
             "approvals.html",
-            {"title": "Approvals", "approvals": store.list_pending_approvals()},
+            {"title": "Approvals", "approvals": store.list_unfinished_approvals()},
         )
 
     @app.post("/approvals/{approval_id}/approve")
@@ -84,7 +84,11 @@ def _resume_approval(store: SQLiteStore, approval_id: str, approved: bool) -> Re
     try:
         approval = store.get_approval(approval_id)
         session = store.get_session(approval.session_id)
-        resumed = _finish_loop(session.workspace, store, "approval resolved").resume_after_approval(approval_id, approved)
+        resumed = AgentLoop.for_workspace(session.workspace, MockLLM([]), store).resume_after_approval(
+            approval_id,
+            approved,
+            continue_after_resolution=False,
+        )
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="approval not found") from exc
     except ValueError as exc:

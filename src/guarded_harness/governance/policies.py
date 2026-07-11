@@ -2,7 +2,12 @@ from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 import re
-import shlex
+
+from guarded_harness.governance.shell_command import (
+    argv_paths_within_workspace,
+    contains_shell_control_syntax,
+    parse_shell_argv,
+)
 
 
 class DecisionType(str, Enum):
@@ -31,6 +36,11 @@ def needs_approval(reason: str) -> PolicyDecision:
 
 
 def classify_shell_command(command: str, workspace_root: Path) -> PolicyDecision:
+    has_control_syntax = contains_shell_control_syntax(command)
+    if has_control_syntax and _has_path_outside_workspace(command, workspace_root):
+        return deny("shell path is outside workspace")
+    if has_control_syntax:
+        return needs_approval("shell syntax requires approval and cannot be executed directly")
     for segment in re.split(r"(?:&&|\|\||;|\||&)", command):
         decision = _classify_shell_segment(segment, workspace_root)
         if decision.decision is not DecisionType.ALLOW:
@@ -40,7 +50,8 @@ def classify_shell_command(command: str, workspace_root: Path) -> PolicyDecision
 
 def _classify_shell_segment(command: str, workspace_root: Path) -> PolicyDecision:
     try:
-        tokens = [_clean_token(token) for token in shlex.split(command, posix=False)]
+        raw_tokens = parse_shell_argv(command)
+        tokens = [_clean_token(token) for token in raw_tokens]
     except ValueError:
         return needs_approval("shell command could not be parsed and requires approval")
 
@@ -54,7 +65,7 @@ def _classify_shell_segment(command: str, workspace_root: Path) -> PolicyDecisio
     wrapper_command = _wrapper_command(executable, arguments)
     if wrapper_command is not None:
         return classify_shell_command(wrapper_command, workspace_root)
-    if _has_path_outside_workspace(command, workspace_root):
+    if not argv_paths_within_workspace(raw_tokens, workspace_root) or _has_path_outside_workspace(command, workspace_root):
         return deny("shell path is outside workspace")
     if _writes_environment_file(command, executable, arguments):
         return needs_approval("modifying an environment file requires approval")

@@ -1,22 +1,15 @@
 import json
 import os
-import re
 import sqlite3
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
 from uuid import uuid4
 
 from guarded_harness.core.sessions import SessionState, SessionStatus
 from guarded_harness.governance.approvals import ApprovalRequest
 from guarded_harness.governance.audit import AuditEvent
-
-
-_SECRET_VALUE_RE = re.compile(
-    r"(?:\bsk-[A-Za-z0-9][A-Za-z0-9._-]*\b|\bBearer\s+[A-Za-z0-9._~+/=-]{8,}\b|\b[A-Za-z0-9_-]{32,}\b)",
-    re.IGNORECASE,
-)
+from guarded_harness.governance.redaction import redact_secrets
 
 
 @dataclass(frozen=True)
@@ -74,20 +67,6 @@ def _validate_db_path(db_path: Path, workspace_root: Path | None) -> Path:
         raise ValueError("database path must be inside the workspace root")
 
     return resolved_path
-
-
-def _redact_secrets(value: Any) -> Any:
-    if isinstance(value, dict):
-        return {
-            key: "[REDACTED]" if any(term in key.lower() for term in ("key", "token", "secret", "password", "authorization"))
-            else _redact_secrets(item)
-            for key, item in value.items()
-        }
-    if isinstance(value, list):
-        return [_redact_secrets(item) for item in value]
-    if isinstance(value, str) and _SECRET_VALUE_RE.search(value):
-        return "[REDACTED]"
-    return value
 
 
 class SQLiteStore:
@@ -167,7 +146,7 @@ class SQLiteStore:
     def append_audit(self, session_id: str, event_type: str, payload: dict) -> None:
         with self._connect() as db:
             db.execute("INSERT INTO audit_events VALUES (?, ?, ?, ?, ?)",
-                       (str(uuid4()), session_id, event_type, json.dumps(_redact_secrets(payload)), _now()))
+                       (str(uuid4()), session_id, event_type, json.dumps(redact_secrets(payload)), _now()))
 
     def list_audit(self, session_id: str) -> list[AuditEvent]:
         with self._connect() as db:
@@ -196,6 +175,70 @@ class SQLiteStore:
         if result.rowcount == 0:
             raise ValueError("approval is already resolved")
         return ApprovalRequest(row["id"], row["session_id"], row["action_json"], row["reason"], row["status"], datetime.fromisoformat(row["created_at"]), datetime.fromisoformat(row["resolved_at"]))
+
+    def begin_approval_resolution(
+        self,
+        approval_id: str,
+        approved: bool,
+    ) -> tuple[ApprovalRequest, SessionState]:
+        approval_status = "executing" if approved else "denied"
+        timestamp = _now()
+        with self._connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            approval_row = db.execute("SELECT * FROM approvals WHERE id = ?", (approval_id,)).fetchone()
+            if approval_row is None:
+                raise KeyError(approval_id)
+            if approval_row["status"] != "pending":
+                raise ValueError("approval is already resolved")
+            session_row = db.execute("SELECT * FROM sessions WHERE id = ?", (approval_row["session_id"],)).fetchone()
+            if session_row is None:
+                raise KeyError(approval_row["session_id"])
+            if (
+                session_row["status"] != SessionStatus.WAITING_APPROVAL.value
+                or session_row["pending_approval_id"] != approval_id
+            ):
+                raise ValueError("session is not waiting for this approval")
+            db.execute(
+                "UPDATE approvals SET status = ?, resolved_at = ? WHERE id = ?",
+                (approval_status, timestamp, approval_id),
+            )
+            db.execute(
+                "UPDATE sessions SET status = ?, pending_approval_id = NULL, updated_at = ? WHERE id = ?",
+                (SessionStatus.RUNNING.value, timestamp, approval_row["session_id"]),
+            )
+
+        approval = ApprovalRequest(
+            approval_row["id"],
+            approval_row["session_id"],
+            approval_row["action_json"],
+            approval_row["reason"],
+            approval_status,
+            datetime.fromisoformat(approval_row["created_at"]),
+            datetime.fromisoformat(timestamp),
+        )
+        return approval, self.get_session(approval.session_id)
+
+    def finalize_approval_execution(self, approval_id: str, succeeded: bool) -> ApprovalRequest:
+        status = "executed" if succeeded else "failed"
+        with self._connect() as db:
+            result = db.execute(
+                "UPDATE approvals SET status = ? WHERE id = ? AND status = ?",
+                (status, approval_id, "executing"),
+            )
+            row = db.execute("SELECT * FROM approvals WHERE id = ?", (approval_id,)).fetchone()
+        if row is None:
+            raise KeyError(approval_id)
+        if result.rowcount == 0:
+            raise ValueError("approval is not executing")
+        return ApprovalRequest(
+            row["id"],
+            row["session_id"],
+            row["action_json"],
+            row["reason"],
+            row["status"],
+            datetime.fromisoformat(row["created_at"]),
+            datetime.fromisoformat(row["resolved_at"]),
+        )
 
     def get_approval(self, approval_id: str) -> ApprovalRequest:
         with self._connect() as db:
@@ -226,6 +269,25 @@ class SQLiteStore:
                 row["reason"],
                 row["status"],
                 datetime.fromisoformat(row["created_at"]),
+            )
+            for row in rows
+        ]
+
+    def list_unfinished_approvals(self) -> list[ApprovalRequest]:
+        with self._connect() as db:
+            rows = db.execute(
+                "SELECT * FROM approvals WHERE status IN (?, ?, ?) ORDER BY created_at",
+                ("pending", "executing", "failed"),
+            ).fetchall()
+        return [
+            ApprovalRequest(
+                row["id"],
+                row["session_id"],
+                row["action_json"],
+                row["reason"],
+                row["status"],
+                datetime.fromisoformat(row["created_at"]),
+                datetime.fromisoformat(row["resolved_at"]) if row["resolved_at"] else None,
             )
             for row in rows
         ]

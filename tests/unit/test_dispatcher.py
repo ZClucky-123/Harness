@@ -1,6 +1,8 @@
 from pathlib import Path
 import subprocess
 
+import pytest
+
 import guarded_harness.tools.tests as test_tools
 from guarded_harness.core.actions import Action, ActionType
 from guarded_harness.core.observations import FeedbackKind
@@ -34,6 +36,73 @@ def test_run_shell_command_error(tmp_path: Path):
 
     assert obs.success is False
     assert obs.feedback_kind == FeedbackKind.COMMAND_ERROR
+
+
+def test_run_shell_executes_structured_argv_without_shell(tmp_path: Path, monkeypatch):
+    dispatcher = ToolDispatcher(tmp_path, test_command=["python", "-c", "print('ok')"])
+    calls = []
+
+    def record_execution(*args, **kwargs):
+        calls.append((args, kwargs))
+        return subprocess.CompletedProcess(args[0], 0, stdout="ok\n", stderr="")
+
+    monkeypatch.setattr("guarded_harness.tools.shell.subprocess.run", record_execution)
+
+    obs = dispatcher.dispatch(Action(ActionType.RUN_SHELL, {"command": "git status --bad-option"}))
+
+    assert obs.success is True
+    assert calls[0][0][0] == ["git", "status", "--bad-option"]
+    assert calls[0][1]["shell"] is False
+    assert calls[0][1]["cwd"] == tmp_path.resolve()
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "echo $(touch marker)",
+        "echo `touch marker`",
+        "echo safe\ntouch marker",
+        "echo safe > marker",
+        "echo safe | cat",
+    ],
+)
+def test_run_shell_never_executes_shell_control_syntax(tmp_path: Path, monkeypatch, command: str):
+    dispatcher = ToolDispatcher(tmp_path, test_command=["python", "-c", "print('ok')"])
+    calls = []
+    monkeypatch.setattr(
+        "guarded_harness.tools.shell.subprocess.run",
+        lambda *args, **kwargs: calls.append((args, kwargs)),
+    )
+
+    obs = dispatcher.dispatch_approved(Action(ActionType.RUN_SHELL, {"command": command}))
+
+    assert obs.success is False
+    assert calls == []
+    assert not (tmp_path / "marker").exists()
+
+
+def test_run_shell_denies_symlink_path_escape_without_execution(tmp_path: Path, monkeypatch):
+    outside = tmp_path.parent / "outside-dispatch-target"
+    outside.mkdir(exist_ok=True)
+    link = tmp_path / "linked-outside"
+    try:
+        link.symlink_to(outside, target_is_directory=True)
+    except OSError as exc:
+        pytest.skip(f"symlinks unavailable: {exc}")
+    calls = []
+    monkeypatch.setattr(
+        "guarded_harness.tools.shell.subprocess.run",
+        lambda *args, **kwargs: calls.append((args, kwargs)),
+    )
+    dispatcher = ToolDispatcher(tmp_path, test_command=["python", "-c", "print('ok')"])
+
+    obs = dispatcher.dispatch(
+        Action(ActionType.RUN_SHELL, {"command": "cat linked-outside/secret.txt"})
+    )
+
+    assert obs.success is False
+    assert obs.feedback_kind == FeedbackKind.POLICY_DENIED
+    assert calls == []
 
 
 def test_run_tests_uses_configured_command(tmp_path: Path):

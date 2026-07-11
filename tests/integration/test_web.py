@@ -52,3 +52,38 @@ def test_denying_approval_resumes_session(tmp_path: Path):
     assert response.status_code == 200
     assert "approval_denied" in response.text
     assert store.get_approval(approval_id).status == "denied"
+
+
+def test_approvals_page_redacts_secrets_from_pending_action(tmp_path: Path):
+    store = SQLiteStore(tmp_path / "state.sqlite3", workspace_root=tmp_path)
+    session = store.create_session("configure", tmp_path)
+    store.create_approval(
+        session.id,
+        '{"type":"write_file","path":".env","content":"sk-web-secret Bearer web-bearer password=hunter2"}',
+        "environment write requires approval",
+    )
+    client = TestClient(create_app(store.db_path, workspace_root=tmp_path))
+
+    response = client.get("/approvals")
+
+    assert response.status_code == 200
+    assert "[REDACTED]" in response.text
+    assert "sk-web-secret" not in response.text
+    assert "web-bearer" not in response.text
+    assert "hunter2" not in response.text
+
+
+def test_approving_action_executes_it_and_ends_recovery_round(tmp_path: Path):
+    store = SQLiteStore(tmp_path / "state.sqlite3", workspace_root=tmp_path)
+    waiting = AgentLoop.for_workspace(
+        tmp_path,
+        MockLLM(['{"type":"write_file","path":".env","content":"MODE=prod"}']),
+        store,
+    ).run("configure production")
+    client = TestClient(create_app(store.db_path, workspace_root=tmp_path))
+
+    response = client.post(f"/approvals/{waiting.pending_approval_id}/approve", follow_redirects=True)
+
+    assert response.status_code == 200
+    assert "approval_recovery_ended" in response.text
+    assert (tmp_path / ".env").read_text() == "MODE=prod"

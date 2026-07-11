@@ -2,16 +2,23 @@ import subprocess
 from pathlib import Path
 
 from guarded_harness.core.observations import FeedbackKind, Observation
+from guarded_harness.governance.shell_command import argv_paths_within_workspace, parse_shell_argv
 
 
 def run_shell(workspace_root: Path, command: object) -> Observation:
     if not isinstance(command, str) or not command:
         return Observation(False, FeedbackKind.COMMAND_ERROR, message="shell command is required")
     try:
+        argv = parse_shell_argv(command)
+    except ValueError as exc:
+        return Observation(False, FeedbackKind.COMMAND_ERROR, message=str(exc))
+    if not argv_paths_within_workspace(argv, workspace_root):
+        return Observation(False, FeedbackKind.POLICY_DENIED, message="shell path is outside workspace")
+    try:
         result = subprocess.run(
-            command,
+            argv,
             cwd=workspace_root,
-            shell=True,
+            shell=False,
             text=True,
             capture_output=True,
             timeout=30,

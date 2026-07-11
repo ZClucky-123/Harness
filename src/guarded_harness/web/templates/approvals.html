@@ -16,10 +16,14 @@
     <ul class="approvals">
     {% for approval in approvals %}
       <li>
-        <p>{{ approval.reason }}</p>
-        <pre>{{ approval.action_json }}</pre>
+        <p><strong>{{ approval.status }}</strong>: {{ approval.reason }}</p>
+        <pre>{{ approval.redacted_action_json }}</pre>
+        {% if approval.status == "pending" %}
         <form action="/approvals/{{ approval.id }}/approve" method="post"><button type="submit">Approve</button></form>
         <form action="/approvals/{{ approval.id }}/deny" method="post"><button class="deny" type="submit">Deny</button></form>
+        {% else %}
+        <p>Execution outcome requires manual review; this action will not be replayed automatically.</p>
+        {% endif %}
       </li>
     {% endfor %}
     </ul>

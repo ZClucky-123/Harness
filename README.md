@@ -117,3 +117,29 @@ demo/            # 离线机制演示说明
 httpx；开发依赖 pytest。这些依赖分别遵循其上游许可证（主要为 MIT 或 BSD-3-Clause）。
 Docker 基础镜像 `python:3.11-slim` 及其包含的软件遵循各自上游条款。发布或再分发前，
 请以锁定版本的官方许可证文本和 SBOM 为准。
+
+## 审批恢复与本地数据风险
+
+- CLI/Web 的跨进程审批处理只执行已审批动作，然后结束本次恢复轮次；它不会静默创建
+  `MockLLM` 来冒充原 live provider，也不会继续原 live 对话。若需继续 live 任务，应在审查结果后显式启动新的
+  `harness run --live`。当前版本尚未持久化 live provider 的对话状态。
+- 为了在审批后执行原动作，`.guarded-harness/state.sqlite3` 的 `approvals.action_json` 会保存原始 action。
+  WebUI、CLI 列表和审计事件只使用统一的脱敏视图，不展示 API key、Bearer token 或 password；但 SQLite
+  文件本身不是加密保险库。请将 workspace 及该文件限制为当前用户可读，不要同步、提交或共享状态库，敏感审批完成后按本地保留策略删除它。
+- shell action 不再交给系统 shell。命令被解析为 argv 并以 `shell=False` 执行；命令替换、反引号、换行、
+  重定向、管道和逻辑操作符会 fail-closed，且路径参数在执行前经过 workspace realpath 检查。
+
+## CI/CD 与部署状态
+
+仓库的 `.gitlab-ci.yml` 定义 `unit-test` 与 `docker-build` 两个 job：push 后应在 GitLab Runner 中安装依赖、
+运行完整 pytest/compileall，并构建 Docker 镜像。当前环境没有 GitLab Runner、registry 或云部署权限，
+因此这次修改**未能在本地验证 CI/CD pass，也没有可如实提供的线上 WebUI URL**。提交到课程 GitLab 后仍需确认最后一次 pipeline 为 pass，
+并由仓库所有者完成镜像发布和公网部署后在此处补入真实 URL。
+
+本地可验证入口为 `harness serve` 或：
+
+```powershell
+uvicorn guarded_harness.web.app:create_app --factory --host 127.0.0.1 --port 8000
+```
+
+本地地址为 `http://127.0.0.1:8000`，它不是线上部署 URL。

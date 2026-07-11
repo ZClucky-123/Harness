@@ -2,6 +2,7 @@ from typer.testing import CliRunner
 
 from guarded_harness.cli import app
 from guarded_harness.config.credentials import CredentialStore, InMemoryKeyring
+from guarded_harness.memory.store import SQLiteStore
 
 
 runner = CliRunner()
@@ -86,3 +87,22 @@ def test_approvals_list_and_approve_resume_demo_session(tmp_path, monkeypatch):
     assert approval_id in listed.stdout
     assert approved.exit_code == 0
     assert "finished" in approved.stdout
+
+
+def test_approvals_list_prints_redacted_action(tmp_path, monkeypatch):
+    store = SQLiteStore(tmp_path / "state.sqlite3", workspace_root=tmp_path)
+    session = store.create_session("configure", tmp_path)
+    store.create_approval(
+        session.id,
+        '{"type":"write_file","path":".env","content":"sk-cli-secret Bearer cli-bearer password=hunter2"}',
+        "approval required",
+    )
+    monkeypatch.setattr("guarded_harness.cli._store", lambda: store)
+
+    result = runner.invoke(app, ["approvals", "list"])
+
+    assert result.exit_code == 0
+    assert "[REDACTED]" in result.stdout
+    assert "sk-cli-secret" not in result.stdout
+    assert "cli-bearer" not in result.stdout
+    assert "hunter2" not in result.stdout
