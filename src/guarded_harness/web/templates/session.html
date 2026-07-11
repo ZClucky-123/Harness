@@ -13,7 +13,7 @@
       <nav><a href="/">New task</a> <a href="/approvals">Approvals</a></nav>
     </header>
     <dl>
-      <dt>Task</dt><dd>{{ session.task }}</dd>
+      <dt>Task</dt><dd>{{ display_task }}</dd>
       <dt>Status</dt><dd>{{ session.status.value }}</dd>
       <dt>Steps</dt><dd>{{ session.step_count }}</dd>
     </dl>

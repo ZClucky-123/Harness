@@ -4,10 +4,56 @@ from pathlib import Path
 
 
 _SHELL_CONTROL_RE = re.compile(r"(?:\r|\n|`|\$\(|[|&;<>])")
+_INLINE_INTERPRETER_FLAGS = {
+    "python": {"-c"},
+    "python3": {"-c"},
+    "py": {"-c"},
+    "pypy": {"-c"},
+    "pypy3": {"-c"},
+    "node": {"-e", "--eval"},
+    "nodejs": {"-e", "--eval"},
+    "ruby": {"-e"},
+    "perl": {"-e"},
+    "php": {"-r"},
+    "lua": {"-e"},
+}
+_SHELL_WRAPPER_FLAGS = {
+    "sh": {"-c"},
+    "bash": {"-c"},
+    "zsh": {"-c"},
+    "powershell": {"-command", "-encodedcommand", "-ec"},
+    "pwsh": {"-command", "-encodedcommand", "-ec"},
+    "cmd": {"/c", "/k"},
+}
 
 
 def contains_shell_control_syntax(command: str) -> bool:
     return _SHELL_CONTROL_RE.search(command) is not None
+
+
+def forbidden_interpreter_reason(command: str) -> str | None:
+    """Identify argv forms that can hide arbitrary code from path validation."""
+    try:
+        tokens = shlex.split(command, posix=False)
+    except ValueError:
+        return None
+    if not tokens:
+        return None
+    normalized_tokens = [token.strip("\"'") for token in tokens]
+    executable = normalized_tokens[0].replace("\\", "/").rsplit("/", 1)[-1].lower()
+    if executable.endswith(".exe"):
+        executable = executable[:-4]
+    if executable == "env":
+        return "process wrapper commands are denied and cannot be approved"
+    arguments = {token.lower() for token in normalized_tokens[1:]}
+    interpreter_flags = _INLINE_INTERPRETER_FLAGS.get(executable, set())
+    if re.fullmatch(r"python\d*(?:\.\d+)*", executable):
+        interpreter_flags = {"-c"}
+    if arguments.intersection(interpreter_flags):
+        return "inline interpreter code is denied and cannot be approved"
+    if executable in _SHELL_WRAPPER_FLAGS:
+        return "shell wrapper commands are denied as potentially destructive and cannot be approved"
+    return None
 
 
 def parse_shell_argv(command: str) -> list[str]:

@@ -139,10 +139,11 @@ class AgentLoop:
                 )
                 continue
             if decision.decision is DecisionType.NEEDS_APPROVAL:
-                approval = self.store.create_approval(session.id, action.raw_source_text or "", decision.reason)
-                session.status = SessionStatus.WAITING_APPROVAL
-                session.pending_approval_id = approval.id
-                self._persist_session(session)
+                approval = self.store.create_approval_and_pause_session(
+                    session,
+                    action.raw_source_text or "",
+                    decision.reason,
+                )
                 self.store.append_audit(session.id, "approval_requested", {"approval_id": approval.id, "reason": decision.reason})
                 return session
 

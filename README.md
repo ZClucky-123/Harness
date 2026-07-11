@@ -107,7 +107,6 @@ demo/            # 离线机制演示说明
 ## 已知限制
 
 - WebUI 目前只运行确定性的 mock session；真实 LLM 调用通过 CLI `run --live` 提供。
-- `harness serve` 命令尚未连接到 WebUI 启动器，请使用上面的 `uvicorn` 命令。
 - Guardrail 使用显式规则，尚未提供可配置策略、完整 OS sandbox 或多用户鉴权。
 - keyring 的可用性取决于本机操作系统与后端配置。
 

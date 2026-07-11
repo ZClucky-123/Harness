@@ -1,4 +1,5 @@
 from pathlib import Path
+import sqlite3
 
 from fastapi.testclient import TestClient
 
@@ -57,11 +58,19 @@ def test_denying_approval_resumes_session(tmp_path: Path):
 def test_approvals_page_redacts_secrets_from_pending_action(tmp_path: Path):
     store = SQLiteStore(tmp_path / "state.sqlite3", workspace_root=tmp_path)
     session = store.create_session("configure", tmp_path)
-    store.create_approval(
-        session.id,
-        '{"type":"write_file","path":".env","content":"sk-web-secret Bearer web-bearer password=hunter2"}',
-        "environment write requires approval",
-    )
+    with sqlite3.connect(store.db_path) as db:
+        db.execute(
+            "INSERT INTO approvals VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (
+                "legacy-secret-approval",
+                session.id,
+                '{"type":"write_file","path":".env","content":"sk-web-secret Bearer web-bearer password=hunter2"}',
+                "environment write requires approval",
+                "pending",
+                "2026-07-11T00:00:00+00:00",
+                None,
+            ),
+        )
     client = TestClient(create_app(store.db_path, workspace_root=tmp_path))
 
     response = client.get("/approvals")
@@ -71,6 +80,30 @@ def test_approvals_page_redacts_secrets_from_pending_action(tmp_path: Path):
     assert "sk-web-secret" not in response.text
     assert "web-bearer" not in response.text
     assert "hunter2" not in response.text
+
+
+def test_session_page_redacts_legacy_secret_task_and_trace(tmp_path: Path):
+    store = SQLiteStore(tmp_path / "state.sqlite3", workspace_root=tmp_path)
+    session = store.create_session("safe task", tmp_path)
+    with sqlite3.connect(store.db_path) as db:
+        db.execute("UPDATE sessions SET task = ? WHERE id = ?", ("password=legacy-task-secret", session.id))
+        db.execute(
+            "INSERT INTO audit_events VALUES (?, ?, ?, ?, ?)",
+            (
+                "legacy-secret-event",
+                session.id,
+                "legacy_event",
+                '{"detail":"postgres://alice:shortpw@db/prod"}',
+                "2026-07-11T00:00:00+00:00",
+            ),
+        )
+
+    response = TestClient(create_app(store.db_path, workspace_root=tmp_path)).get(f"/sessions/{session.id}")
+
+    assert response.status_code == 200
+    assert "[REDACTED]" in response.text
+    assert "legacy-task-secret" not in response.text
+    assert "shortpw" not in response.text
 
 
 def test_approving_action_executes_it_and_ends_recovery_round(tmp_path: Path):

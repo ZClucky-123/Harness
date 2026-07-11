@@ -6,6 +6,7 @@ import re
 from guarded_harness.governance.shell_command import (
     argv_paths_within_workspace,
     contains_shell_control_syntax,
+    forbidden_interpreter_reason,
     parse_shell_argv,
 )
 
@@ -36,6 +37,9 @@ def needs_approval(reason: str) -> PolicyDecision:
 
 
 def classify_shell_command(command: str, workspace_root: Path) -> PolicyDecision:
+    forbidden_reason = forbidden_interpreter_reason(command)
+    if forbidden_reason is not None:
+        return deny(forbidden_reason)
     has_control_syntax = contains_shell_control_syntax(command)
     if has_control_syntax and _has_path_outside_workspace(command, workspace_root):
         return deny("shell path is outside workspace")
@@ -182,17 +186,8 @@ def _is_known_safe_command(executable: str, arguments: list[str]) -> bool:
     if executable == "git":
         return bool(arguments) and arguments[0] in {"status", "diff", "log", "show", "branch", "rev-parse"}
     if executable in {"python", "python3"}:
-        return arguments[:2] == ["-m", "compileall"] or _is_safe_python_inline(arguments)
+        return arguments[:2] == ["-m", "compileall"]
     return executable == "echo"
-
-
-def _is_safe_python_inline(arguments: list[str]) -> bool:
-    if len(arguments) != 2 or arguments[0] != "-c":
-        return False
-    code = arguments[1].strip()
-    return code.startswith("print(") and not any(
-        token in code for token in ("open(", "write", "unlink", "remove", "mkdir", "rmdir", "pathlib", "os.")
-    )
 
 
 def _redirect_target(command: str) -> str | None:

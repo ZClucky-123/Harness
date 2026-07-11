@@ -224,9 +224,45 @@ def test_fail_closed_for_unknown_filesystem_capable_commands(tmp_path: Path):
     )
     assert (
         guardrail.evaluate(Action(ActionType.RUN_SHELL, {"command": 'python -c "print(open(\'local\', \'w\'))"'})).decision
-        == DecisionType.NEEDS_APPROVAL
+        == DecisionType.DENY
     )
     assert guardrail.evaluate(Action(ActionType.RUN_SHELL, {"command": "unknown-command"})).decision == DecisionType.NEEDS_APPROVAL
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        'python -c "from pathlib import Path; Path.home().joinpath(\'x\').write_text(\'bad\')"',
+        'python3 -c "print(\'hello\')"',
+        'python3.11 -c "print(\'hello\')"',
+        'env python -c "print(\'hello\')"',
+        'env -u TOKEN python -c "print(\'hello\')"',
+        'sh -c "echo hello"',
+        'bash -c "echo hello"',
+        "bash script.sh",
+        'powershell -Command "Get-Content README.md"',
+        'pwsh -Command "Get-Content README.md"',
+        'cmd /c "type README.md"',
+    ],
+)
+def test_deny_inline_interpreters_and_shell_wrappers_even_when_payload_looks_safe(tmp_path: Path, command: str):
+    decision = Guardrail(tmp_path).evaluate(Action(ActionType.RUN_SHELL, {"command": command}))
+
+    assert decision.decision == DecisionType.DENY
+    assert "interpreter" in decision.reason or "wrapper" in decision.reason
+
+
+def test_safe_python_module_and_regular_argv_remain_supported(tmp_path: Path):
+    guardrail = Guardrail(tmp_path)
+
+    assert (
+        guardrail.evaluate(Action(ActionType.RUN_SHELL, {"command": "python -m compileall -q src"})).decision
+        == DecisionType.ALLOW
+    )
+    assert (
+        guardrail.evaluate(Action(ActionType.RUN_SHELL, {"command": "git status --bad-option"})).decision
+        == DecisionType.ALLOW
+    )
 
 
 def test_require_approval_for_shell_env_file_writers(tmp_path: Path):

@@ -9,6 +9,7 @@ from fastapi.templating import Jinja2Templates
 from guarded_harness.core.loop import AgentLoop
 from guarded_harness.llm.mock import MockLLM
 from guarded_harness.memory.store import SQLiteStore
+from guarded_harness.governance.redaction import redact_secrets
 
 
 _PACKAGE_DIR = Path(__file__).resolve().parent
@@ -58,7 +59,12 @@ def create_app(store_path: Path | None = None, workspace_root: Path | None = Non
         return _TEMPLATES.TemplateResponse(
             request,
             "session.html",
-            {"title": "Session", "session": session, "events": store.list_audit(session_id)},
+            {
+                "title": "Session",
+                "session": session,
+                "display_task": redact_secrets(session.task),
+                "events": store.list_audit(session_id),
+            },
         )
 
     @app.get("/approvals")

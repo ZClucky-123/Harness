@@ -92,11 +92,21 @@ def test_approvals_list_and_approve_resume_demo_session(tmp_path, monkeypatch):
 def test_approvals_list_prints_redacted_action(tmp_path, monkeypatch):
     store = SQLiteStore(tmp_path / "state.sqlite3", workspace_root=tmp_path)
     session = store.create_session("configure", tmp_path)
-    store.create_approval(
-        session.id,
-        '{"type":"write_file","path":".env","content":"sk-cli-secret Bearer cli-bearer password=hunter2"}',
-        "approval required",
-    )
+    import sqlite3
+
+    with sqlite3.connect(store.db_path) as db:
+        db.execute(
+            "INSERT INTO approvals VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (
+                "legacy-cli-secret",
+                session.id,
+                '{"type":"write_file","path":".env","content":"sk-cli-secret Bearer cli-bearer password=hunter2"}',
+                "approval required",
+                "pending",
+                "2026-07-11T00:00:00+00:00",
+                None,
+            ),
+        )
     monkeypatch.setattr("guarded_harness.cli._store", lambda: store)
 
     result = runner.invoke(app, ["approvals", "list"])

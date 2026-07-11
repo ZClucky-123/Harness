@@ -22,11 +22,11 @@ def test_write_and_read_file(tmp_path: Path):
 def test_run_shell_success(tmp_path: Path):
     dispatcher = ToolDispatcher(tmp_path, test_command=["python", "-c", "print('ok')"])
 
-    obs = dispatcher.dispatch(Action(ActionType.RUN_SHELL, {"command": "python -c \"print('ok')\""}))
+    obs = dispatcher.dispatch(Action(ActionType.RUN_SHELL, {"command": "python -m compileall -q ."}))
 
     assert obs.success is True
     assert obs.feedback_kind == FeedbackKind.TOOL_SUCCESS
-    assert "ok" in obs.stdout
+    assert obs.stderr == ""
 
 
 def test_run_shell_command_error(tmp_path: Path):
@@ -79,6 +79,30 @@ def test_run_shell_never_executes_shell_control_syntax(tmp_path: Path, monkeypat
     assert obs.success is False
     assert calls == []
     assert not (tmp_path / "marker").exists()
+
+
+def test_approved_python_inline_code_is_denied_without_execution(tmp_path: Path, monkeypatch):
+    dispatcher = ToolDispatcher(tmp_path, test_command=["pytest", "-q"])
+    calls = []
+    monkeypatch.setattr(
+        "guarded_harness.tools.dispatcher.run_shell",
+        lambda *args, **kwargs: calls.append((args, kwargs)),
+    )
+    action = Action(
+        ActionType.RUN_SHELL,
+        {
+            "command": (
+                'python -c "from pathlib import Path; '
+                "Path.home().joinpath('x').write_text('bad')\""
+            )
+        },
+    )
+
+    observation = dispatcher.dispatch_approved(action)
+
+    assert observation.success is False
+    assert observation.feedback_kind == FeedbackKind.POLICY_DENIED
+    assert calls == []
 
 
 def test_run_shell_denies_symlink_path_escape_without_execution(tmp_path: Path, monkeypatch):

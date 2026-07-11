@@ -31,6 +31,23 @@ def test_approval_pauses_and_persists_pending_action(tmp_path: Path):
     assert json.loads(approvals[0].action_json)["path"] == ".env"
 
 
+def test_loop_uses_atomic_approval_pause_path(tmp_path: Path, monkeypatch):
+    loop = make_loop(tmp_path, ['{"type":"write_file","path":".env","content":"MODE=prod"}'])
+
+    monkeypatch.setattr(
+        loop.store,
+        "create_approval",
+        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("legacy approval path used")),
+    )
+
+    session = loop.run("configure production")
+    approval = loop.store.list_pending_approvals()[0]
+    persisted = loop.store.get_session(session.id)
+
+    assert persisted.status is SessionStatus.WAITING_APPROVAL
+    assert persisted.pending_approval_id == approval.id
+
+
 def test_approved_pending_action_executes_and_persists_finished_session(tmp_path: Path):
     loop = make_loop(
         tmp_path,

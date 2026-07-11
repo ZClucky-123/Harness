@@ -4,6 +4,7 @@ from guarded_harness.core.actions import Action, ActionType
 from guarded_harness.core.observations import FeedbackKind, Observation
 from guarded_harness.governance.guardrail import Guardrail
 from guarded_harness.governance.policies import DecisionType
+from guarded_harness.governance.shell_command import forbidden_interpreter_reason
 from guarded_harness.tools.filesystem import read_file, write_file
 from guarded_harness.tools.shell import run_shell
 from guarded_harness.tools.tests import run_tests
@@ -26,6 +27,10 @@ class ToolDispatcher:
 
     def dispatch_approved(self, action: Action) -> Observation:
         try:
+            if action.type is ActionType.RUN_SHELL:
+                reason = forbidden_interpreter_reason(str(action.payload.get("command", "")))
+                if reason is not None:
+                    return Observation(False, FeedbackKind.POLICY_DENIED, message=reason)
             decision = self.guardrail.evaluate(action)
             if decision.decision is not DecisionType.NEEDS_APPROVAL:
                 return Observation(False, FeedbackKind.POLICY_DENIED, message="action is not approval-gated")
