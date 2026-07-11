@@ -721,7 +721,7 @@ git commit -m "feat: implement hitl approval state machine"
 - Produces: commands `demo guardrail`, `demo hitl`, `demo feedback`, `approvals list`, `approvals approve`, `approvals deny`
 - Produces: `CredentialStore.set_key`, `CredentialStore.status`, `CredentialStore.clear_key`
 
-- [ ] **Step 1: Write failing CLI tests**
+- [x] **Step 1: Write failing CLI tests**
 
 Create `tests/integration/test_cli.py`:
 
@@ -749,13 +749,13 @@ def test_feedback_demo_command():
     assert "changed action" in result.stdout
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `pytest tests/integration/test_cli.py -q`
 
 Expected: FAIL with missing `cli.py`.
 
-- [ ] **Step 3: Implement CLI**
+- [x] **Step 3: Implement CLI**
 
 Implement Typer command groups:
 
@@ -773,13 +773,13 @@ Implement Typer command groups:
 
 Credential status must print only configured/not configured, never key value.
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `pytest tests/integration/test_cli.py -q`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/guarded_harness/cli.py src/guarded_harness/config demo/README.md tests/integration/test_cli.py
