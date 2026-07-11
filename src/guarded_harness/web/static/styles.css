@@ -1,0 +1,15 @@
+:root { color: #1d2939; font-family: Arial, sans-serif; background: #f8fafc; }
+body { margin: 0; }
+main { max-width: 800px; margin: 2rem auto; padding: 0 1rem; }
+header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; border-bottom: 1px solid #cbd5e1; }
+h1 { margin: 0.6rem 0; }
+form { margin: 1rem 0; }
+textarea { box-sizing: border-box; display: block; min-height: 8rem; width: 100%; margin: 0.5rem 0; }
+button { padding: 0.45rem 0.8rem; border: 1px solid #155e75; background: #0e7490; color: #fff; cursor: pointer; }
+button.deny { border-color: #b91c1c; background: #dc2626; }
+dt { font-weight: bold; }
+dd { margin: 0.25rem 0 1rem; }
+.trace, .approvals { padding: 0; list-style: none; }
+.trace li, .approvals li { margin: 0.75rem 0; padding: 0.75rem; border: 1px solid #cbd5e1; background: #fff; }
+.approvals form { display: inline-block; margin-right: 0.5rem; }
+pre { overflow-x: auto; white-space: pre-wrap; }

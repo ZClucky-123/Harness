@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ title }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', path='styles.css') }}">
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Approvals</h1>
+      <a href="/">New task</a>
+    </header>
+    {% if approvals %}
+    <ul class="approvals">
+    {% for approval in approvals %}
+      <li>
+        <p>{{ approval.reason }}</p>
+        <pre>{{ approval.action_json }}</pre>
+        <form action="/approvals/{{ approval.id }}/approve" method="post"><button type="submit">Approve</button></form>
+        <form action="/approvals/{{ approval.id }}/deny" method="post"><button class="deny" type="submit">Deny</button></form>
+      </li>
+    {% endfor %}
+    </ul>
+    {% else %}
+    <p>No pending approvals.</p>
+    {% endif %}
+  </main>
+</body>
+</html>

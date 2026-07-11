@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ title }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', path='styles.css') }}">
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Session</h1>
+      <nav><a href="/">New task</a> <a href="/approvals">Approvals</a></nav>
+    </header>
+    <dl>
+      <dt>Task</dt><dd>{{ session.task }}</dd>
+      <dt>Status</dt><dd>{{ session.status.value }}</dd>
+      <dt>Steps</dt><dd>{{ session.step_count }}</dd>
+    </dl>
+    <h2>Trace</h2>
+    <ol class="trace">
+    {% for event in events %}
+      <li><strong>{{ event.event_type }}</strong><pre>{{ event.payload | tojson(indent=2) }}</pre></li>
+    {% endfor %}
+    </ol>
+  </main>
+</body>
+</html>
