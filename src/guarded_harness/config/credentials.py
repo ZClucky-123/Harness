@@ -59,12 +59,8 @@ class CredentialStore:
         return self.get_key() is not None
 
     def clear_key(self) -> None:
-        if self._keyring is None:
-            return
-        try:
-            self._keyring.delete_password(SERVICE_NAME, ACCOUNT_NAME)
-        except Exception:
-            return
+        backend = self._require_backend()
+        backend.delete_password(SERVICE_NAME, ACCOUNT_NAME)
 
     def _require_backend(self) -> KeyringBackend:
         if self._keyring is None:

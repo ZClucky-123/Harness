@@ -1,4 +1,6 @@
 import json
+import shutil
+import tempfile
 from pathlib import Path
 
 import typer
@@ -36,11 +38,20 @@ def _credential_store() -> CredentialStore:
 def _print_events(loop: AgentLoop, session_id: str) -> None:
     for event in loop.store.list_audit(session_id):
         typer.echo(event.event_type)
+        feedback_kind = event.payload.get("feedback_kind")
+        if feedback_kind:
+            typer.echo(f"feedback_kind={feedback_kind}")
+        if event.event_type == "finished":
+            typer.echo(f"finished: {event.payload.get('message', '')}")
 
 
-def _demo_loop(responses: list[str]) -> AgentLoop:
-    root = _workspace()
-    return AgentLoop.for_workspace(root, MockLLM(responses), _store(), max_steps=len(responses) + 1)
+def _demo_loop(
+    responses: list[str],
+    workspace: Path | None = None,
+    store: SQLiteStore | None = None,
+) -> AgentLoop:
+    root = workspace or _workspace()
+    return AgentLoop.for_workspace(root, MockLLM(responses), store or _store(), max_steps=len(responses) + 1)
 
 
 @demo_app.command("guardrail")
@@ -57,21 +68,21 @@ def demo_guardrail() -> None:
 @demo_app.command("feedback")
 def demo_feedback() -> None:
     loop = _demo_loop([
-        json.dumps({"type": "run_shell", "command": 'python -c "raise SystemExit(2)"'}),
+        json.dumps({"type": "run_shell", "command": "git status --bad-option"}),
         json.dumps({"type": "finish", "message": "changed action after command_error"}),
     ])
     session = loop.run("Demonstrate feedback-driven recovery")
     _print_events(loop, session.id)
-    typer.echo("changed action after command_error")
     typer.echo(f"status={session.status.value}")
 
 
 @demo_app.command("hitl")
 def demo_hitl(wait_only: bool = typer.Option(False, "--wait-only", help="Leave the demo approval pending.")) -> None:
+    demo_workspace = Path(tempfile.mkdtemp(prefix="guarded-harness-hitl-"))
     loop = _demo_loop([
         json.dumps({"type": "write_file", "path": ".env", "content": "HARNESS_DEMO=approved\n"}),
         json.dumps({"type": "finish", "message": "approved action completed"}),
-    ])
+    ], workspace=demo_workspace)
     waiting = loop.run("Demonstrate human approval")
     typer.echo(f"status={waiting.status.value}")
     approval_id = waiting.pending_approval_id
@@ -80,9 +91,12 @@ def demo_hitl(wait_only: bool = typer.Option(False, "--wait-only", help="Leave t
     typer.echo(f"approval_id={approval_id}")
     if wait_only:
         return
-    session = loop.resume_after_approval(approval_id, approved=True)
-    _print_events(loop, session.id)
-    typer.echo(f"status={session.status.value}")
+    try:
+        session = loop.resume_after_approval(approval_id, approved=True)
+        _print_events(loop, session.id)
+        typer.echo(f"status={session.status.value}")
+    finally:
+        shutil.rmtree(demo_workspace, ignore_errors=True)
 
 
 @approvals_app.command("list")
