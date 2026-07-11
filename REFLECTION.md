@@ -20,7 +20,7 @@ SPEC/PLAN 的清晰度直接决定实现质量。一个具体偏差是：规格�
 
 ## 凭据、分发与可靠性取舍
 
-凭据要求迫使项目区分“执行需要的原文”和“用户可见的表示”。审批动作可能包含 `.env` 内容，若模板直接展示 `action_json`，keyring 做得再好也会在 WebUI 和 SQLite 链路泄露。当前方案保留内部恢复所需的原始 action，同时提供统一脱敏视图给 Web、CLI 和审计，并明确 SQLite 不是加密保险库。这仍不是理想终点；更强的方案应使用系统保护的加密密钥加密 action，或把 secret 引用化而不持久化值。
+凭据要求迫使项目区分“执行需要的值”和“允许持久化的表示”。审批动作可能包含 `.env` 内容，若模板直接展示 `action_json`，keyring 做得再好也会在 WebUI 和 SQLite 链路泄露。当前方案在审批 action 入库前脱敏，Web、CLI 和审计也复用同一套 redaction；代价是含 secret 的审批动作批准后只会执行脱敏值，真正的 secret 必须来自 keyring 或本地环境。这仍不是理想终点；更强的方案应使用系统保护的加密密钥加密 action，或把 secret 引用化而不持久化值。
 
 分发要求则揭示“本地能跑”和“别人能可靠获得”不是同一件事。Dockerfile 与 GitLab CI 只能说明预期路径，不能替代实际 pipeline、registry 和公网部署证据。当前环境没有 Runner 和部署权限，所以文档必须如实写待验证、无线上 URL，而不能伪造 pass。若重做项目，我会更早建立 Python 3.11 的完整依赖环境和最小 CI，在功能增长前就跑 Web/CLI 与容器冒烟测试；同时会先设计审批 outbox 和 provider checkpoint，而不是在最后补崩溃语义。
 

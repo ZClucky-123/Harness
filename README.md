@@ -123,9 +123,10 @@ Docker 基础镜像 `python:3.11-slim` 及其包含的软件遵循各自上游�
 - CLI/Web 的跨进程审批处理只执行已审批动作，然后结束本次恢复轮次；它不会静默创建
   `MockLLM` 来冒充原 live provider，也不会继续原 live 对话。若需继续 live 任务，应在审查结果后显式启动新的
   `harness run --live`。当前版本尚未持久化 live provider 的对话状态。
-- 为了在审批后执行原动作，`.guarded-harness/state.sqlite3` 的 `approvals.action_json` 会保存原始 action。
-  WebUI、CLI 列表和审计事件只使用统一的脱敏视图，不展示 API key、Bearer token 或 password；但 SQLite
-  文件本身不是加密保险库。请将 workspace 及该文件限制为当前用户可读，不要同步、提交或共享状态库，敏感审批完成后按本地保留策略删除它。
+- `.guarded-harness/state.sqlite3` 的审批 action 会在持久化前统一脱敏，不保存 API key、Bearer token
+  或 password 明文。安全优先意味着若某个待审批 action 本身包含 secret，批准后执行的也是脱敏后的值；
+  secret 应通过 keyring 或本地环境注入，而不是写入待审批 payload。SQLite 文件仍不是加密保险库，请将
+  workspace 及该文件限制为当前用户可读，不要同步、提交或共享状态库。
 - shell action 不再交给系统 shell。命令被解析为 argv 并以 `shell=False` 执行；命令替换、反引号、换行、
   重定向、管道和逻辑操作符会 fail-closed，且路径参数在执行前经过 workspace realpath 检查。
 

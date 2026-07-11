@@ -9,7 +9,7 @@ from uuid import uuid4
 from guarded_harness.core.sessions import SessionState, SessionStatus
 from guarded_harness.governance.approvals import ApprovalRequest
 from guarded_harness.governance.audit import AuditEvent
-from guarded_harness.governance.redaction import redact_secrets
+from guarded_harness.governance.redaction import redact_action_json, redact_secrets
 
 
 @dataclass(frozen=True)
@@ -156,10 +156,11 @@ class SQLiteStore:
     def create_approval(self, session_id: str, action_json: str, reason: str) -> ApprovalRequest:
         approval_id = str(uuid4())
         timestamp = _now()
+        stored_action_json = redact_action_json(action_json)
         with self._connect() as db:
             db.execute("INSERT INTO approvals VALUES (?, ?, ?, ?, ?, ?, ?)",
-                       (approval_id, session_id, action_json, reason, "pending", timestamp, None))
-        return ApprovalRequest(approval_id, session_id, action_json, reason, "pending", datetime.fromisoformat(timestamp))
+                       (approval_id, session_id, stored_action_json, reason, "pending", timestamp, None))
+        return ApprovalRequest(approval_id, session_id, stored_action_json, reason, "pending", datetime.fromisoformat(timestamp))
 
     def resolve_approval(self, approval_id: str, approved: bool) -> ApprovalRequest:
         status = "approved" if approved else "denied"

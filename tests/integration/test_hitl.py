@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 import pytest
@@ -27,7 +28,7 @@ def test_approval_pauses_and_persists_pending_action(tmp_path: Path):
     assert session.status == SessionStatus.WAITING_APPROVAL
     assert persisted.pending_approval_id == approvals[0].id
     assert len(approvals) == 1
-    assert '"path":".env"' in approvals[0].action_json
+    assert json.loads(approvals[0].action_json)["path"] == ".env"
 
 
 def test_approved_pending_action_executes_and_persists_finished_session(tmp_path: Path):

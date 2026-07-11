@@ -114,7 +114,7 @@ def test_cannot_resolve_an_approval_twice(tmp_path: Path):
         store.resolve_approval(approval.id, approved=False)
 
 
-def test_approval_exposes_only_redacted_action_for_display(tmp_path: Path):
+def test_approval_persists_only_redacted_secret_action(tmp_path: Path):
     store = SQLiteStore(tmp_path / "state.sqlite3", workspace_root=tmp_path)
     session = store.create_session("configure", tmp_path)
     action = (
@@ -123,9 +123,14 @@ def test_approval_exposes_only_redacted_action_for_display(tmp_path: Path):
     )
 
     approval = store.create_approval(session.id, action, "approval required")
+    persisted = store.get_approval(approval.id)
 
-    assert approval.action_json == action
+    assert "[REDACTED]" in approval.action_json
+    assert approval.action_json == persisted.action_json
     assert "[REDACTED]" in approval.redacted_action_json
+    assert "sk-live-secret" not in approval.action_json
+    assert "bearer-secret" not in approval.action_json
+    assert "hunter2" not in approval.action_json
     assert "sk-live-secret" not in approval.redacted_action_json
     assert "bearer-secret" not in approval.redacted_action_json
     assert "hunter2" not in approval.redacted_action_json
