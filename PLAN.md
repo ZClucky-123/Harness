@@ -633,7 +633,7 @@ git commit -m "feat: add mockable agent loop"
 - Produces: persisted pending approval state
 - Produces: deny feedback as `approval_denied`
 
-- [ ] **Step 1: Write failing HITL tests**
+- [x] **Step 1: Write failing HITL tests**
 
 Create `tests/integration/test_hitl.py`:
 
@@ -674,13 +674,13 @@ def test_deny_approval_feeds_back_and_finishes(tmp_path: Path):
     assert any("approval_denied" in str(event.payload) for event in events)
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `pytest tests/integration/test_hitl.py -q`
 
 Expected: FAIL because resume or approval listing is incomplete.
 
-- [ ] **Step 3: Implement HITL persistence and resume**
+- [x] **Step 3: Implement HITL persistence and resume**
 
 Implement:
 
@@ -690,13 +690,13 @@ Implement:
 - `resume_after_approval(approval_id, approved=True)` executes paused action
 - `resume_after_approval(approval_id, approved=False)` appends `approval_denied` observation and continues the LLM loop
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `pytest tests/integration/test_hitl.py -q`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/guarded_harness/core/loop.py src/guarded_harness/governance/approvals.py src/guarded_harness/memory/store.py tests/integration/test_hitl.py
