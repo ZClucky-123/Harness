@@ -27,7 +27,7 @@ build-backend = "setuptools.build_meta"
 where = ["src"]
 
 [tool.setuptools.package-data]
-guarded_harness.web = ["static/*", "templates/*"]
+"guarded_harness.web" = ["static/*", "templates/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
