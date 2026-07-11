@@ -197,6 +197,21 @@ class SQLiteStore:
             raise ValueError("approval is already resolved")
         return ApprovalRequest(row["id"], row["session_id"], row["action_json"], row["reason"], row["status"], datetime.fromisoformat(row["created_at"]), datetime.fromisoformat(row["resolved_at"]))
 
+    def get_approval(self, approval_id: str) -> ApprovalRequest:
+        with self._connect() as db:
+            row = db.execute("SELECT * FROM approvals WHERE id = ?", (approval_id,)).fetchone()
+        if row is None:
+            raise KeyError(approval_id)
+        return ApprovalRequest(
+            row["id"],
+            row["session_id"],
+            row["action_json"],
+            row["reason"],
+            row["status"],
+            datetime.fromisoformat(row["created_at"]),
+            datetime.fromisoformat(row["resolved_at"]) if row["resolved_at"] else None,
+        )
+
     def list_pending_approvals(self) -> list[ApprovalRequest]:
         with self._connect() as db:
             rows = db.execute(

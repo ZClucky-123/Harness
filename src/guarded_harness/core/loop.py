@@ -50,10 +50,38 @@ class AgentLoop:
     def run(self, task: str) -> SessionState:
         session = self.store.create_session(task, self.workspace_root)
         self.store.append_audit(session.id, "session_started", {"task": task})
+        return self._continue(session)
 
+    def resume_after_approval(self, approval_id: str, approved: bool) -> SessionState:
+        approval = self.store.get_approval(approval_id)
+        if approval.status != "pending":
+            raise ValueError("approval is already resolved")
+        session = self.store.get_session(approval.session_id)
+        if session.status is not SessionStatus.WAITING_APPROVAL or session.pending_approval_id != approval.id:
+            raise ValueError("session is not waiting for this approval")
+
+        resolved = self.store.resolve_approval(approval_id, approved)
+        session.status = SessionStatus.RUNNING
+        session.pending_approval_id = None
+        self._persist_session(session)
+
+        if resolved.status == "approved":
+            self.store.append_audit(session.id, "approval_approved", {"approval_id": resolved.id})
+            action = parse_action(resolved.action_json)
+            self._record_observation(session, "resumed_tool_result", self.dispatcher.dispatch_approved(action))
+        else:
+            self._record_observation(
+                session,
+                "approval_denied",
+                Observation(False, FeedbackKind.APPROVAL_DENIED, message=resolved.reason),
+                {"approval_id": resolved.id},
+            )
+        return self._continue(session)
+
+    def _continue(self, session: SessionState) -> SessionState:
         while session.step_count < self.max_steps:
             try:
-                raw_action = self.llm.complete(self._context(task, session.observations))
+                raw_action = self.llm.complete(self._context(session.task, session.observations))
             except Exception as exc:
                 observation = Observation(False, FeedbackKind.COMMAND_ERROR, message=f"provider failure: {exc}")
                 self._record_observation(session, "provider_failure", observation)
@@ -104,9 +132,6 @@ class AgentLoop:
         self._persist_session(session)
         self.store.append_audit(session.id, "max_steps", {"max_steps": self.max_steps})
         return session
-
-    def resume_after_approval(self, approval_id: str, approved: bool) -> SessionState:
-        raise NotImplementedError("approval resume is implemented in Task 6")
 
     def _context(self, task: str, observations: list[Observation]) -> dict[str, Any]:
         return {
