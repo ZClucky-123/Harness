@@ -878,7 +878,7 @@ git commit -m "feat: add minimal approval webui"
 - Produces: documented install/run/test/Docker/security instructions
 - Produces: CI `unit-test` job
 
-- [ ] **Step 1: Write CI and Docker smoke expectations**
+- [x] **Step 1: Write CI and Docker smoke expectations**
 
 Create `.gitlab-ci.yml`:
 
@@ -921,7 +921,7 @@ EXPOSE 8000
 CMD ["uvicorn", "guarded_harness.web.app:create_app", "--factory", "--host", "0.0.0.0", "--port", "8000"]
 ```
 
-- [ ] **Step 2: Update README**
+- [x] **Step 2: Update README**
 
 README must include:
 
@@ -937,7 +937,7 @@ README must include:
 - known limitations
 - third-party licenses summary
 
-- [ ] **Step 3: Create process documents**
+- [x] **Step 3: Create process documents**
 
 Create `SPEC_PROCESS.md` with:
 
@@ -955,7 +955,7 @@ Create `AGENT_LOG.md` with current entries:
 - writing-plans skill usage
 - design spec commits `5641349` and `969e4ff`
 
-- [ ] **Step 4: Run full local verification**
+- [x] **Step 4: Run full local verification**
 
 Run:
 
