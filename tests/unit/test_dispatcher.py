@@ -194,6 +194,41 @@ def test_dispatcher_requires_approval_without_executing_shell(tmp_path: Path, mo
     assert "approval" in obs.message
 
 
+def test_dispatcher_denies_external_helper_options_without_execution(tmp_path: Path, monkeypatch):
+    dispatcher = ToolDispatcher(tmp_path, test_command=["python", "-c", "print('ok')"])
+    calls = []
+
+    monkeypatch.setattr(
+        "guarded_harness.tools.shell.subprocess.run",
+        lambda *args, **kwargs: calls.append((args, kwargs)),
+    )
+
+    for command in ("rg --pre=./workspace-script pattern", "git diff --ext-diff"):
+        obs = dispatcher.dispatch(Action(ActionType.RUN_SHELL, {"command": command}))
+
+        assert obs.success is False
+        assert obs.feedback_kind == FeedbackKind.POLICY_DENIED
+    assert calls == []
+
+
+def test_dispatcher_denies_secret_payloads_before_tools(tmp_path: Path, monkeypatch):
+    dispatcher = ToolDispatcher(tmp_path, test_command=["python", "-c", "print('ok')"])
+    calls = []
+
+    monkeypatch.setattr(
+        "guarded_harness.tools.dispatcher.write_file",
+        lambda *args, **kwargs: calls.append((args, kwargs)),
+    )
+
+    obs = dispatcher.dispatch(
+        Action(ActionType.WRITE_FILE, {"path": "out.txt", "content": "xoxb-123456789012-secret"})
+    )
+
+    assert obs.success is False
+    assert obs.feedback_kind == FeedbackKind.POLICY_DENIED
+    assert calls == []
+
+
 def test_run_tests_rejects_empty_configured_command_without_running(tmp_path: Path, monkeypatch):
     dispatcher = ToolDispatcher(tmp_path, test_command=[])
     calls = []

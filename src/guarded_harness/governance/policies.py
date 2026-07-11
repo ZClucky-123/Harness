@@ -181,15 +181,42 @@ def _writes_environment_file(command: str, executable: str, arguments: list[str]
 
 
 def _is_known_safe_command(executable: str, arguments: list[str]) -> bool:
-    if executable in {"cat", "type", "dir", "ls", "pwd", "whoami", "rg", "findstr", "get-content", "get-childitem"}:
+    if executable in {"cat", "type", "dir", "ls", "pwd", "whoami", "findstr", "get-content", "get-childitem"}:
         return True
+    if executable == "rg":
+        return _is_safe_rg_argv(arguments)
     if executable == "pytest":
         return _is_safe_pytest_argv(arguments)
     if executable == "git":
-        return bool(arguments) and arguments[0] in {"status", "diff", "log", "show", "branch", "rev-parse"}
+        return _is_safe_git_argv(arguments)
     if executable in {"python", "python3"}:
         return arguments[:2] == ["-m", "compileall"]
     return executable == "echo"
+
+
+def _is_safe_rg_argv(arguments: list[str]) -> bool:
+    return not any(
+        argument == "--pre"
+        or argument.startswith("--pre=")
+        or argument == "--pre-glob"
+        or argument.startswith("--pre-glob=")
+        for argument in arguments
+    )
+
+
+def _is_safe_git_argv(arguments: list[str]) -> bool:
+    if not arguments or arguments[0] not in {"status", "diff", "log", "show", "branch", "rev-parse"}:
+        return False
+    return not any(
+        argument == "--ext-diff"
+        or argument.startswith("--ext-diff=")
+        or argument == "--external-diff"
+        or argument.startswith("--external-diff=")
+        or argument.startswith("--exec-path")
+        or argument.startswith("--config=")
+        or argument == "-c"
+        for argument in arguments
+    )
 
 
 def _is_safe_pytest_argv(arguments: list[str]) -> bool:

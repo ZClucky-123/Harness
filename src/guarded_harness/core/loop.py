@@ -6,6 +6,7 @@ from guarded_harness.core.observations import FeedbackKind, Observation
 from guarded_harness.core.sessions import SessionState, SessionStatus
 from guarded_harness.governance.guardrail import Guardrail
 from guarded_harness.governance.policies import DecisionType
+from guarded_harness.governance.redaction import contains_secret
 from guarded_harness.llm.base import LLMProvider
 from guarded_harness.memory.store import SQLiteStore
 from guarded_harness.tools.dispatcher import ToolDispatcher
@@ -112,6 +113,18 @@ class AgentLoop:
             except ValueError as exc:
                 observation = Observation(False, FeedbackKind.COMMAND_ERROR, message=str(exc))
                 self._record_observation(session, "parser_error", observation, {"raw_action": raw_action})
+                continue
+
+            if contains_secret(action.payload):
+                self._record_observation(
+                    session,
+                    "policy_denied",
+                    Observation(
+                        False,
+                        FeedbackKind.POLICY_DENIED,
+                        message="action payload contains a secret; use keyring/secret reference instead",
+                    ),
+                )
                 continue
 
             self.store.append_audit(session.id, "action_parsed", {"type": action.type.value, "payload": action.payload})

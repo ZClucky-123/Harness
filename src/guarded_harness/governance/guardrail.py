@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from guarded_harness.core.actions import Action, ActionType
+from guarded_harness.governance.redaction import contains_secret
 from guarded_harness.governance.policies import (
     PolicyDecision,
     allow,
@@ -16,6 +17,8 @@ class Guardrail:
         self.workspace_root = Path(workspace_root).resolve()
 
     def evaluate(self, action: Action) -> PolicyDecision:
+        if contains_secret(action.payload):
+            return deny("action payload contains a secret; use keyring/secret reference instead")
         if action.type is ActionType.RUN_SHELL:
             return classify_shell_command(str(action.payload.get("command", "")), self.workspace_root)
         if action.type in {ActionType.READ_FILE, ActionType.WRITE_FILE}:

@@ -52,3 +52,16 @@ def test_terminal_session_state_is_persisted(
     assert persisted.step_count == expected_steps
     assert (persisted.pending_approval_id is not None) is has_pending_approval
     assert persisted.pending_approval_id == session.pending_approval_id
+
+
+def test_secret_bearing_finish_action_is_rejected_before_audit(tmp_path: Path):
+    session, store = _run_loop(
+        tmp_path,
+        ['{"type":"finish","message":"ghp_abcdefghijklmnopqrstuvwxyz123456"}'],
+        max_steps=1,
+    )
+    events = store.list_audit(session.id)
+
+    assert session.status is SessionStatus.MAX_STEPS
+    assert any(event.event_type == "policy_denied" for event in events)
+    assert all("ghp_" not in str(event.payload) for event in events)

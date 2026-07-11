@@ -44,7 +44,7 @@ def test_allow_write_inside_workspace(tmp_path: Path):
 
 
 def test_require_approval_to_modify_env_file(tmp_path: Path):
-    action = Action(ActionType.WRITE_FILE, {"path": ".env", "content": "TOKEN=value"})
+    action = Action(ActionType.WRITE_FILE, {"path": ".env", "content": "MODE=local"})
 
     decision = Guardrail(tmp_path).evaluate(action)
 
@@ -53,7 +53,7 @@ def test_require_approval_to_modify_env_file(tmp_path: Path):
 
 
 def test_require_approval_to_modify_uppercase_env_file(tmp_path: Path):
-    action = Action(ActionType.WRITE_FILE, {"path": ".ENV", "content": "TOKEN=value"})
+    action = Action(ActionType.WRITE_FILE, {"path": ".ENV", "content": "MODE=local"})
 
     decision = Guardrail(tmp_path).evaluate(action)
 
@@ -188,7 +188,7 @@ def test_deny_alternative_dependency_installs(tmp_path: Path):
 
 
 def test_require_approval_for_shell_env_file_write(tmp_path: Path):
-    decision = Guardrail(tmp_path).evaluate(Action(ActionType.RUN_SHELL, {"command": "echo TOKEN=x > .env"}))
+    decision = Guardrail(tmp_path).evaluate(Action(ActionType.RUN_SHELL, {"command": "echo MODE=local > .env"}))
 
     assert decision.decision == DecisionType.NEEDS_APPROVAL
 
@@ -300,6 +300,33 @@ def test_pytest_rejects_non_allowlisted_plugin_argv(tmp_path: Path):
     )
 
     assert decision.decision == DecisionType.DENY
+
+
+def test_deny_external_helper_options_for_safe_shell_commands(tmp_path: Path):
+    guardrail = Guardrail(tmp_path)
+
+    for command in (
+        "rg --pre=./workspace-script pattern",
+        "rg --pre ./workspace-script pattern",
+        "git diff --ext-diff",
+        "git -c core.pager=./workspace-script diff",
+    ):
+        decision = guardrail.evaluate(Action(ActionType.RUN_SHELL, {"command": command}))
+
+        assert decision.decision == DecisionType.DENY
+
+
+def test_deny_secret_bearing_action_payloads(tmp_path: Path):
+    guardrail = Guardrail(tmp_path)
+
+    for action in (
+        Action(ActionType.WRITE_FILE, {"path": "out.txt", "content": "ghp_abcdefghijklmnopqrstuvwxyz123456"}),
+        Action(ActionType.FINISH, {"message": "AKIAABCDEFGHIJKLMNOP"}),
+        Action(ActionType.RUN_SHELL, {"command": "echo AIzaabcdefghijklmnopqrstuvwxyz1234567"}),
+    ):
+        decision = guardrail.evaluate(action)
+
+        assert decision.decision == DecisionType.DENY
 
 
 def test_require_approval_for_shell_env_file_writers(tmp_path: Path):
