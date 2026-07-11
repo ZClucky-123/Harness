@@ -16,7 +16,7 @@
     <ul class="approvals">
     {% for approval in approvals %}
       <li>
-        <p><strong>{{ approval.status }}</strong>: {{ approval.reason }}</p>
+        <p><strong>{{ approval.status }}</strong>: {{ approval.redacted_reason }}</p>
         <pre>{{ approval.redacted_action_json }}</pre>
         {% if approval.status == "pending" %}
         <form action="/approvals/{{ approval.id }}/approve" method="post"><button type="submit">Approve</button></form>

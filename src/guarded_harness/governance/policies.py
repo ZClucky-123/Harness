@@ -212,6 +212,14 @@ def _is_safe_git_argv(arguments: list[str]) -> bool:
         or argument.startswith("--ext-diff=")
         or argument == "--external-diff"
         or argument.startswith("--external-diff=")
+        or argument == "--textconv"
+        or argument == "--no-textconv"
+        or argument.startswith("--textconv=")
+        or argument.startswith("--no-textconv=")
+        or argument == "--paginate"
+        or argument.startswith("--paginate=")
+        or argument == "--no-pager"
+        or argument.startswith("--pager=")
         or argument.startswith("--exec-path")
         or argument.startswith("--config=")
         or argument == "-c"

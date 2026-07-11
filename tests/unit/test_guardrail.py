@@ -309,6 +309,10 @@ def test_deny_external_helper_options_for_safe_shell_commands(tmp_path: Path):
         "rg --pre=./workspace-script pattern",
         "rg --pre ./workspace-script pattern",
         "git diff --ext-diff",
+        "git diff --textconv",
+        "git show --textconv HEAD:README.md",
+        "git --pager=./workspace-script diff",
+        "git diff --no-textconv",
         "git -c core.pager=./workspace-script diff",
     ):
         decision = guardrail.evaluate(Action(ActionType.RUN_SHELL, {"command": command}))

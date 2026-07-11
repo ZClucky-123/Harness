@@ -106,7 +106,7 @@ def list_approvals() -> None:
         typer.echo("no pending approvals")
         return
     for approval in approvals:
-        typer.echo(f"{approval.id} {approval.status}: {approval.reason}")
+        typer.echo(f"{approval.id} {approval.status}: {approval.redacted_reason}")
         typer.echo(approval.redacted_action_json)
 
 

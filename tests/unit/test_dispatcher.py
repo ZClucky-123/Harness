@@ -203,12 +203,37 @@ def test_dispatcher_denies_external_helper_options_without_execution(tmp_path: P
         lambda *args, **kwargs: calls.append((args, kwargs)),
     )
 
-    for command in ("rg --pre=./workspace-script pattern", "git diff --ext-diff"):
+    for command in ("rg --pre=./workspace-script pattern", "git diff --ext-diff", "git diff --textconv"):
         obs = dispatcher.dispatch(Action(ActionType.RUN_SHELL, {"command": command}))
 
         assert obs.success is False
         assert obs.feedback_kind == FeedbackKind.POLICY_DENIED
     assert calls == []
+
+
+def test_run_shell_sanitizes_safe_helper_configuration(tmp_path: Path, monkeypatch):
+    dispatcher = ToolDispatcher(tmp_path, test_command=["python", "-c", "print('ok')"])
+    calls = []
+    monkeypatch.setenv("RIPGREP_CONFIG_PATH", str(tmp_path / "ripgreprc"))
+    monkeypatch.setenv("GIT_EXTERNAL_DIFF", str(tmp_path / "helper"))
+
+    def record_execution(*args, **kwargs):
+        calls.append((args, kwargs))
+        return subprocess.CompletedProcess(args[0], 0, stdout="ok\n", stderr="")
+
+    monkeypatch.setattr("guarded_harness.tools.shell.subprocess.run", record_execution)
+
+    assert dispatcher.dispatch(Action(ActionType.RUN_SHELL, {"command": "rg pattern"})).success is True
+    assert dispatcher.dispatch(Action(ActionType.RUN_SHELL, {"command": "git diff"})).success is True
+
+    rg_argv, rg_kwargs = calls[0][0][0], calls[0][1]
+    git_argv, git_kwargs = calls[1][0][0], calls[1][1]
+    assert rg_argv == ["rg", "--no-config", "pattern"]
+    assert "RIPGREP_CONFIG_PATH" not in rg_kwargs["env"]
+    assert git_argv == ["git", "diff", "--no-ext-diff", "--no-textconv"]
+    assert git_kwargs["env"]["GIT_EXTERNAL_DIFF"] == ""
+    assert git_kwargs["env"]["GIT_CONFIG_NOSYSTEM"] == "1"
+    assert git_kwargs["env"]["GIT_PAGER"] == "cat"
 
 
 def test_dispatcher_denies_secret_payloads_before_tools(tmp_path: Path, monkeypatch):

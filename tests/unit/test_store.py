@@ -1,3 +1,4 @@
+from datetime import datetime
 from pathlib import Path
 import json
 import sqlite3
@@ -5,6 +6,7 @@ import sqlite3
 import pytest
 
 from guarded_harness.core.sessions import SessionStatus
+from guarded_harness.governance.approvals import ApprovalRequest
 from guarded_harness.memory.store import SQLiteStore
 
 
@@ -194,6 +196,43 @@ def test_approval_rejects_structured_secret_field_name(tmp_path: Path):
         store.create_approval(session.id, action, "approval required")
 
     assert "short" not in store.db_path.read_bytes().decode("utf-8", errors="ignore")
+
+
+@pytest.mark.parametrize("atomic", [False, True])
+def test_approval_rejects_secret_reason_without_persisting_it(tmp_path: Path, atomic: bool):
+    store = SQLiteStore(tmp_path / "state.sqlite3", workspace_root=tmp_path)
+    session = store.create_session("configure", tmp_path)
+    secret_reason = "operator pasted Authorization: Bearer reason-token"
+
+    with pytest.raises(ValueError, match="keyring/secret reference"):
+        if atomic:
+            store.create_approval_and_pause_session(
+                session,
+                '{"type":"write_file","path":".env","content":"MODE=prod"}',
+                secret_reason,
+            )
+        else:
+            store.create_approval(
+                session.id,
+                '{"type":"write_file","path":".env","content":"MODE=prod"}',
+                secret_reason,
+            )
+
+    assert store.list_pending_approvals() == []
+    assert "reason-token" not in store.db_path.read_bytes().decode("utf-8", errors="ignore")
+
+
+def test_legacy_approval_reason_is_redacted_for_display():
+    approval = ApprovalRequest(
+        "approval-id",
+        "session-id",
+        '{"type":"run_shell"}',
+        "operator pasted Authorization: Bearer reason-token",
+        "pending",
+        created_at=datetime.now(),
+    )
+
+    assert approval.redacted_reason == "operator pasted Authorization: [REDACTED]"
 
 
 def test_create_session_rejects_secret_task_without_persisting_it(tmp_path: Path):

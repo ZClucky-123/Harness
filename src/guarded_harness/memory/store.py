@@ -156,6 +156,7 @@ class SQLiteStore:
 
     def create_approval(self, session_id: str, action_json: str, reason: str) -> ApprovalRequest:
         reject_secrets(action_json, "approval action")
+        reject_secrets(reason, "approval reason")
         approval_id = str(uuid4())
         timestamp = _now()
         with self._connect() as db:
@@ -170,6 +171,7 @@ class SQLiteStore:
         reason: str,
     ) -> ApprovalRequest:
         reject_secrets(action_json, "approval action")
+        reject_secrets(reason, "approval reason")
         approval_id = str(uuid4())
         timestamp = _now()
         with self._connect() as db:

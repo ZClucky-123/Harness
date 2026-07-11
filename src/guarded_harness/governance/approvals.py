@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from datetime import datetime
 
-from guarded_harness.governance.redaction import redact_action_json
+from guarded_harness.governance.redaction import redact_action_json, redact_secrets
 
 
 @dataclass(frozen=True)
@@ -17,3 +17,8 @@ class ApprovalRequest:
     @property
     def redacted_action_json(self) -> str:
         return redact_action_json(self.action_json)
+
+    @property
+    def redacted_reason(self) -> str:
+        redacted = redact_secrets(self.reason)
+        return redacted if isinstance(redacted, str) else "[REDACTED]"
