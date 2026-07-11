@@ -9,7 +9,7 @@
 | Writing plans | 将核心模型、存储、guardrail、dispatcher、loop、HITL、CLI、WebUI 和交付拆分为可验证任务。 | 见 `PLAN.md` |
 | 设计规格 | 创建并中文化 Guarded Harness 规格。 | `5641349`, `969e4ff` |
 | Task 1--8 | 实现 core/session/store/guardrails/dispatcher/agent loop/HITL/CLI/WebUI，并逐任务提交。 | 以 git 历史与 tests 为准 |
-| Task 9 | 增加 Docker、GitLab CI、README、过程文档和最终验证记录。 | 本次交付提交待记录 |
+| Task 9 | 增加 Docker、GitLab CI、README、过程文档和最终验证记录。 | `e918c53` |
 
 ## 使用的工作流
 

@@ -971,7 +971,7 @@ Expected:
 - compileall exits 0
 - Docker image builds
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add README.md .gitlab-ci.yml Dockerfile SPEC_PROCESS.md AGENT_LOG.md PLAN.md docs/superpowers/plans/2026-07-10-guarded-harness.md
