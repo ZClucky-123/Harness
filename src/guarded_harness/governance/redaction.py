@@ -4,6 +4,12 @@ from typing import Any
 
 
 _OPENAI_SECRET_RE = re.compile(r"(?<![A-Za-z0-9])sk-[A-Za-z0-9][A-Za-z0-9._-]*", re.IGNORECASE)
+_GITHUB_SECRET_RE = re.compile(
+    r"(?<![A-Za-z0-9])(?:github_pat_[A-Za-z0-9_]{20,}|gh[pousr]_[A-Za-z0-9]{20,})"
+)
+_AWS_ACCESS_KEY_RE = re.compile(r"(?<![A-Z0-9])(?:AKIA|ASIA)[A-Z0-9]{16}(?![A-Z0-9])")
+_SLACK_SECRET_RE = re.compile(r"(?<![A-Za-z0-9])xox[bp]-[A-Za-z0-9-]{10,}")
+_GOOGLE_API_KEY_RE = re.compile(r"(?<![A-Za-z0-9])AIza[A-Za-z0-9_-]{20,}")
 _BEARER_RE = re.compile(r"\bBearer\s+[^\s\"',;]+", re.IGNORECASE)
 _ASSIGNMENT_RE = re.compile(
     r"(?i)(\b(?:database_url|db_url|[A-Za-z0-9_-]*(?:key|token|secret|password|authorization)[A-Za-z0-9_-]*)\s*[=:]\s*)((?:Bearer\s+)?[^\s,;]+)"
@@ -42,6 +48,10 @@ def contains_secret(value: Any) -> bool:
         pattern.search(value) is not None
         for pattern in (
             _OPENAI_SECRET_RE,
+            _GITHUB_SECRET_RE,
+            _AWS_ACCESS_KEY_RE,
+            _SLACK_SECRET_RE,
+            _GOOGLE_API_KEY_RE,
             _BEARER_RE,
             _ASSIGNMENT_RE,
             _URL_USERINFO_RE,
@@ -70,7 +80,11 @@ def redact_secrets(value: Any) -> Any:
         redacted = _PEM_PRIVATE_KEY_RE.sub("[REDACTED]", redacted)
         redacted = _PEM_PRIVATE_KEY_MARKER_RE.sub("[REDACTED]", redacted)
         redacted = _BEARER_RE.sub("[REDACTED]", redacted)
-        return _OPENAI_SECRET_RE.sub("[REDACTED]", redacted)
+        redacted = _OPENAI_SECRET_RE.sub("[REDACTED]", redacted)
+        redacted = _GITHUB_SECRET_RE.sub("[REDACTED]", redacted)
+        redacted = _AWS_ACCESS_KEY_RE.sub("[REDACTED]", redacted)
+        redacted = _SLACK_SECRET_RE.sub("[REDACTED]", redacted)
+        return _GOOGLE_API_KEY_RE.sub("[REDACTED]", redacted)
     return value
 
 

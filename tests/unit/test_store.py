@@ -149,6 +149,42 @@ def test_approval_rejects_secrets_without_persisting_them(tmp_path: Path, secret
         assert db.execute("SELECT COUNT(*) FROM approvals").fetchone()[0] == 0
 
 
+@pytest.mark.parametrize(
+    "secret",
+    [
+        "ghp_abcdefghijklmnopqrstuvwxyz1234567890",
+        "github_pat_11AA00_exampleexampleexampleexample",
+        "gho_abcdefghijklmnopqrstuvwxyz1234567890",
+        "ghu_abcdefghijklmnopqrstuvwxyz1234567890",
+        "ghs_abcdefghijklmnopqrstuvwxyz1234567890",
+        "ghr_abcdefghijklmnopqrstuvwxyz1234567890",
+        "AKIAIOSFODNN7EXAMPLE",
+        "ASIAIOSFODNN7EXAMPLE",
+        "xoxb-1234567890-abcdefghijklmnop",
+        "xoxp-1234567890-abcdefghijklmnop",
+        "AIzaSyD-exampleexampleexampleexample1234",
+    ],
+)
+@pytest.mark.parametrize("atomic", [False, True])
+def test_approval_rejects_provider_tokens_in_neutral_content_without_persisting(
+    tmp_path: Path,
+    secret: str,
+    atomic: bool,
+):
+    store = SQLiteStore(tmp_path / "state.sqlite3", workspace_root=tmp_path)
+    session = store.create_session("configure", tmp_path)
+    action = json.dumps({"type": "write_file", "path": "notes.txt", "content": f"value {secret}"})
+
+    with pytest.raises(ValueError, match="keyring/secret reference"):
+        if atomic:
+            store.create_approval_and_pause_session(session, action, "approval required")
+        else:
+            store.create_approval(session.id, action, "approval required")
+
+    assert store.list_pending_approvals() == []
+    assert secret not in store.db_path.read_bytes().decode("utf-8", errors="ignore")
+
+
 def test_approval_rejects_structured_secret_field_name(tmp_path: Path):
     store = SQLiteStore(tmp_path / "state.sqlite3", workspace_root=tmp_path)
     session = store.create_session("configure", tmp_path)
@@ -166,6 +202,16 @@ def test_create_session_rejects_secret_task_without_persisting_it(tmp_path: Path
 
     with pytest.raises(ValueError, match="keyring/secret reference"):
         store.create_session(f"debug with {secret}", tmp_path)
+
+    assert secret not in store.db_path.read_bytes().decode("utf-8", errors="ignore")
+
+
+@pytest.mark.parametrize("secret", ["ghp_abcdefghijklmnopqrstuvwxyz1234567890", "AKIAIOSFODNN7EXAMPLE"])
+def test_create_session_rejects_provider_token_in_neutral_task(tmp_path: Path, secret: str):
+    store = SQLiteStore(tmp_path / "state.sqlite3", workspace_root=tmp_path)
+
+    with pytest.raises(ValueError, match="keyring/secret reference"):
+        store.create_session(f"review this value: {secret}", tmp_path)
 
     assert secret not in store.db_path.read_bytes().decode("utf-8", errors="ignore")
 
@@ -207,6 +253,16 @@ def test_add_memory_rejects_secrets_in_all_persisted_fields(tmp_path: Path, kind
 
     with sqlite3.connect(store.db_path) as db:
         assert db.execute("SELECT COUNT(*) FROM memory_entries").fetchone()[0] == 0
+
+
+@pytest.mark.parametrize("secret", ["ghp_abcdefghijklmnopqrstuvwxyz1234567890", "AKIAIOSFODNN7EXAMPLE"])
+def test_add_memory_rejects_provider_token_in_neutral_content(tmp_path: Path, secret: str):
+    store = SQLiteStore(tmp_path / "state.sqlite3", workspace_root=tmp_path)
+
+    with pytest.raises(ValueError, match="keyring/secret reference"):
+        store.add_memory("note", f"value {secret}", ["reference"])
+
+    assert store.list_memory(limit=5) == []
 
 
 def test_create_approval_and_pause_session_is_atomic(tmp_path: Path):
@@ -267,6 +323,27 @@ def test_finalize_approval_execution_records_outcome(tmp_path: Path):
     finalized = store.finalize_approval_execution(approval.id, succeeded=False)
 
     assert finalized.status == "failed"
+
+
+def test_executing_approval_can_be_manually_marked_failed_with_audit(tmp_path: Path):
+    store = SQLiteStore(tmp_path / "state.sqlite3", workspace_root=tmp_path)
+    session = store.create_session("configure", tmp_path)
+    approval = store.create_approval(session.id, '{"type":"write_file","path":".env","content":"ok"}', "approval")
+    session.status = SessionStatus.WAITING_APPROVAL
+    session.pending_approval_id = approval.id
+    store.update_session(session)
+    store.begin_approval_resolution(approval.id, approved=True)
+
+    failed = store.mark_approval_failed(approval.id, "operator recovered crashed execution")
+
+    assert failed.status == "failed"
+    assert store.get_session(session.id).status is SessionStatus.FAILED
+    event = store.list_audit(session.id)[-1]
+    assert event.event_type == "approval_manually_failed"
+    assert event.payload == {
+        "approval_id": approval.id,
+        "reason": "operator recovered crashed execution",
+    }
 
 
 def test_unfinished_approval_remains_visible_after_execution_starts(tmp_path: Path):

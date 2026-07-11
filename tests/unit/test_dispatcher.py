@@ -105,6 +105,26 @@ def test_approved_python_inline_code_is_denied_without_execution(tmp_path: Path,
     assert calls == []
 
 
+@pytest.mark.parametrize("command", ["python workspace_script.py", "npm test", "make", "workspace_script.py"])
+def test_approved_arbitrary_code_entrypoints_are_denied_without_execution(
+    tmp_path: Path,
+    monkeypatch,
+    command: str,
+):
+    dispatcher = ToolDispatcher(tmp_path, test_command=["pytest", "-q"])
+    calls = []
+    monkeypatch.setattr(
+        "guarded_harness.tools.dispatcher.run_shell",
+        lambda *args, **kwargs: calls.append((args, kwargs)),
+    )
+
+    observation = dispatcher.dispatch_approved(Action(ActionType.RUN_SHELL, {"command": command}))
+
+    assert observation.success is False
+    assert observation.feedback_kind == FeedbackKind.POLICY_DENIED
+    assert calls == []
+
+
 def test_run_shell_denies_symlink_path_escape_without_execution(tmp_path: Path, monkeypatch):
     outside = tmp_path.parent / "outside-dispatch-target"
     outside.mkdir(exist_ok=True)
@@ -167,7 +187,7 @@ def test_dispatcher_requires_approval_without_executing_shell(tmp_path: Path, mo
 
     monkeypatch.setattr("guarded_harness.tools.dispatcher.run_shell", fail_if_executed)
 
-    obs = dispatcher.dispatch(Action(ActionType.RUN_SHELL, {"command": "git push origin main"}))
+    obs = dispatcher.dispatch(Action(ActionType.RUN_SHELL, {"command": "rm src/app.py"}))
 
     assert obs.success is False
     assert obs.feedback_kind == FeedbackKind.APPROVAL_DENIED

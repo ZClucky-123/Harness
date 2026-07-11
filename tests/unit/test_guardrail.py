@@ -16,13 +16,13 @@ def test_deny_rm_rf_root(tmp_path: Path):
     assert "destructive" in decision.reason
 
 
-def test_require_approval_for_git_push(tmp_path: Path):
+def test_deny_git_push(tmp_path: Path):
     action = Action(ActionType.RUN_SHELL, {"command": "git push origin main"})
 
     decision = Guardrail(tmp_path).evaluate(action)
 
-    assert decision.decision == DecisionType.NEEDS_APPROVAL
-    assert "approval" in decision.reason
+    assert decision.decision == DecisionType.DENY
+    assert "cannot be approved" in decision.reason
 
 
 def test_deny_write_outside_workspace(tmp_path: Path):
@@ -180,11 +180,11 @@ def test_deny_environment_variable_file_paths(tmp_path: Path):
             assert "outside workspace" in decision.reason
 
 
-def test_require_approval_for_alternative_dependency_installs(tmp_path: Path):
+def test_deny_alternative_dependency_installs(tmp_path: Path):
     guardrail = Guardrail(tmp_path)
 
     for command in ("pip3 install example", "python -m pip install example", "npm ci"):
-        assert guardrail.evaluate(Action(ActionType.RUN_SHELL, {"command": command})).decision == DecisionType.NEEDS_APPROVAL
+        assert guardrail.evaluate(Action(ActionType.RUN_SHELL, {"command": command})).decision == DecisionType.DENY
 
 
 def test_require_approval_for_shell_env_file_write(tmp_path: Path):
@@ -226,7 +226,7 @@ def test_fail_closed_for_unknown_filesystem_capable_commands(tmp_path: Path):
         guardrail.evaluate(Action(ActionType.RUN_SHELL, {"command": 'python -c "print(open(\'local\', \'w\'))"'})).decision
         == DecisionType.DENY
     )
-    assert guardrail.evaluate(Action(ActionType.RUN_SHELL, {"command": "unknown-command"})).decision == DecisionType.NEEDS_APPROVAL
+    assert guardrail.evaluate(Action(ActionType.RUN_SHELL, {"command": "unknown-command"})).decision == DecisionType.DENY
 
 
 @pytest.mark.parametrize(
@@ -252,6 +252,34 @@ def test_deny_inline_interpreters_and_shell_wrappers_even_when_payload_looks_saf
     assert "interpreter" in decision.reason or "wrapper" in decision.reason
 
 
+@pytest.mark.parametrize(
+    "command",
+    [
+        "python workspace_script.py",
+        "python3 workspace_script.py",
+        "py workspace_script.py",
+        "node workspace_script.js",
+        "ruby workspace_script.rb",
+        "perl workspace_script.pl",
+        "php workspace_script.php",
+        "lua workspace_script.lua",
+        "npm test",
+        "yarn test",
+        "pnpm test",
+        "npx pytest",
+        "cargo test",
+        "make",
+        "workspace_script.py",
+        "git push origin main",
+    ],
+)
+def test_deny_arbitrary_code_and_build_entrypoints(tmp_path: Path, command: str):
+    decision = Guardrail(tmp_path).evaluate(Action(ActionType.RUN_SHELL, {"command": command}))
+
+    assert decision.decision == DecisionType.DENY
+    assert "cannot be approved" in decision.reason
+
+
 def test_safe_python_module_and_regular_argv_remain_supported(tmp_path: Path):
     guardrail = Guardrail(tmp_path)
 
@@ -263,6 +291,15 @@ def test_safe_python_module_and_regular_argv_remain_supported(tmp_path: Path):
         guardrail.evaluate(Action(ActionType.RUN_SHELL, {"command": "git status --bad-option"})).decision
         == DecisionType.ALLOW
     )
+    assert guardrail.evaluate(Action(ActionType.RUN_SHELL, {"command": "pytest -q tests"})).decision == DecisionType.ALLOW
+
+
+def test_pytest_rejects_non_allowlisted_plugin_argv(tmp_path: Path):
+    decision = Guardrail(tmp_path).evaluate(
+        Action(ActionType.RUN_SHELL, {"command": "pytest -p workspace_plugin tests"})
+    )
+
+    assert decision.decision == DecisionType.DENY
 
 
 def test_require_approval_for_shell_env_file_writers(tmp_path: Path):

@@ -138,6 +138,17 @@ def deny_approval(approval_id: str) -> None:
     _resume_approval(approval_id, approved=False)
 
 
+@approvals_app.command("mark-failed")
+def mark_approval_failed(approval_id: str, reason: str) -> None:
+    try:
+        approval = _store().mark_approval_failed(approval_id, reason)
+    except KeyError as exc:
+        raise typer.BadParameter("approval not found") from exc
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+    typer.echo(f"approval {approval.id} marked failed")
+
+
 @credentials_app.command("set")
 def set_credential() -> None:
     key = typer.prompt("API key", hide_input=True, confirmation_prompt=True)

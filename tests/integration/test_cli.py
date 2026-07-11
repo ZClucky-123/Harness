@@ -2,6 +2,7 @@ from typer.testing import CliRunner
 
 from guarded_harness.cli import app
 from guarded_harness.config.credentials import CredentialStore, InMemoryKeyring
+from guarded_harness.core.sessions import SessionStatus
 from guarded_harness.memory.store import SQLiteStore
 
 
@@ -116,3 +117,20 @@ def test_approvals_list_prints_redacted_action(tmp_path, monkeypatch):
     assert "sk-cli-secret" not in result.stdout
     assert "cli-bearer" not in result.stdout
     assert "hunter2" not in result.stdout
+
+
+def test_approvals_mark_failed_recovers_executing_approval(tmp_path, monkeypatch):
+    store = SQLiteStore(tmp_path / "state.sqlite3", workspace_root=tmp_path)
+    session = store.create_session("configure", tmp_path)
+    approval = store.create_approval(session.id, '{"type":"write_file","path":".env","content":"ok"}', "approval")
+    session.status = SessionStatus.WAITING_APPROVAL
+    session.pending_approval_id = approval.id
+    store.update_session(session)
+    store.begin_approval_resolution(approval.id, approved=True)
+    monkeypatch.setattr("guarded_harness.cli._store", lambda: store)
+
+    result = runner.invoke(app, ["approvals", "mark-failed", approval.id, "crashed worker"])
+
+    assert result.exit_code == 0
+    assert store.get_approval(approval.id).status == "failed"
+    assert "marked failed" in result.stdout

@@ -21,8 +21,14 @@
         {% if approval.status == "pending" %}
         <form action="/approvals/{{ approval.id }}/approve" method="post"><button type="submit">Approve</button></form>
         <form action="/approvals/{{ approval.id }}/deny" method="post"><button class="deny" type="submit">Deny</button></form>
+        {% elif approval.status == "executing" %}
+        <p>Execution did not finish. Mark it failed after confirming the worker is no longer running.</p>
+        <form action="/approvals/{{ approval.id }}/mark-failed" method="post">
+          <label>Reason <input name="reason" required></label>
+          <button class="deny" type="submit">Mark failed</button>
+        </form>
         {% else %}
-        <p>Execution outcome requires manual review; this action will not be replayed automatically.</p>
+        <p>Execution is marked failed and will not be replayed automatically.</p>
         {% endif %}
       </li>
     {% endfor %}

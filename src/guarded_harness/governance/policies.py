@@ -73,11 +73,13 @@ def _classify_shell_segment(command: str, workspace_root: Path) -> PolicyDecisio
         return deny("shell path is outside workspace")
     if _writes_environment_file(command, executable, arguments):
         return needs_approval("modifying an environment file requires approval")
+    if executable == "git" and (not arguments or arguments[0] not in {"status", "diff", "log", "show", "branch", "rev-parse"}):
+        return deny("non-read-only git commands are denied and cannot be approved")
     if _requires_approval(executable, arguments):
         return needs_approval("shell command requires approval")
     if _is_known_safe_command(executable, arguments):
         return allow()
-    return needs_approval("shell command is not in the safe allowlist")
+    return deny("shell command is not in the safe allowlist and cannot be approved")
 
 
 def _is_destructive(executable: str, arguments: list[str]) -> bool:
@@ -182,12 +184,40 @@ def _is_known_safe_command(executable: str, arguments: list[str]) -> bool:
     if executable in {"cat", "type", "dir", "ls", "pwd", "whoami", "rg", "findstr", "get-content", "get-childitem"}:
         return True
     if executable == "pytest":
-        return True
+        return _is_safe_pytest_argv(arguments)
     if executable == "git":
         return bool(arguments) and arguments[0] in {"status", "diff", "log", "show", "branch", "rev-parse"}
     if executable in {"python", "python3"}:
         return arguments[:2] == ["-m", "compileall"]
     return executable == "echo"
+
+
+def _is_safe_pytest_argv(arguments: list[str]) -> bool:
+    value_options = {"-k", "-m", "--maxfail", "--tb"}
+    flag_options = {
+        "-q",
+        "-x",
+        "--collect-only",
+        "--disable-warnings",
+        "--ff",
+        "--lf",
+        "--strict-config",
+        "--strict-markers",
+    }
+    index = 0
+    while index < len(arguments):
+        argument = arguments[index]
+        if not argument.startswith("-"):
+            index += 1
+            continue
+        if argument in flag_options or argument.startswith(("--maxfail=", "--tb=")):
+            index += 1
+            continue
+        if argument in value_options and index + 1 < len(arguments):
+            index += 2
+            continue
+        return False
+    return True
 
 
 def _redirect_target(command: str) -> str | None:

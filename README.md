@@ -84,8 +84,9 @@ workspace 卷；请只挂载你允许 harness 访问的目录。
   输出或 Web 页面。
 - `.env` 是明文文件，只应作为本地开发 fallback；它已被 `.gitignore` 忽略，但仍可能被
   备份、终端历史或误挂载卷泄露。不要提交、共享或在不受信任目录中创建它。
-- 所有文件 action 都受 workspace root 约束。破坏性系统命令和 workspace 外写入被拒绝；
-  `git push`、依赖安装、删除 workspace 内文件以及修改 `.env` 需要人工审批。
+- 所有文件 action 都受 workspace root 约束。破坏性系统命令、workspace 外写入、`git push`、
+  依赖安装、解释器脚本和构建/生命周期命令均被硬拒；删除 workspace 内文件以及修改 `.env` 需要人工审批。
+  shell action 仅允许受限 pytest argv、`python -m compileall`、只读 git 与明确的只读命令。
 - Guardrail 是确定性防护层，不是完整沙箱。运行 live mode 或批准操作前，仍需审查任务、
   workspace 和命令影响。
 
@@ -122,9 +123,9 @@ Docker 基础镜像 `python:3.11-slim` 及其包含的软件遵循各自上游�
 - CLI/Web 的跨进程审批处理只执行已审批动作，然后结束本次恢复轮次；它不会静默创建
   `MockLLM` 来冒充原 live provider，也不会继续原 live 对话。若需继续 live 任务，应在审查结果后显式启动新的
   `harness run --live`。当前版本尚未持久化 live provider 的对话状态。
-- `.guarded-harness/state.sqlite3` 的审批 action 会在持久化前统一脱敏，不保存 API key、Bearer token
-  或 password 明文。安全优先意味着若某个待审批 action 本身包含 secret，批准后执行的也是脱敏后的值；
-  secret 应通过 keyring 或本地环境注入，而不是写入待审批 payload。SQLite 文件仍不是加密保险库，请将
+- `.guarded-harness/state.sqlite3` 的审批 action 会在持久化前执行 secret 检测。包含 API key、Bearer token、
+  password 或常见 provider token 的 action 会被拒绝创建，不会入库，也不能被批准或执行；历史数据仅在展示时
+  防御性脱敏。secret 应通过 keyring 或本地环境注入，而不是写入待审批 payload。SQLite 文件仍不是加密保险库，请将
   workspace 及该文件限制为当前用户可读，不要同步、提交或共享状态库。
 - shell action 不再交给系统 shell。命令被解析为 argv 并以 `shell=False` 执行；命令替换、反引号、换行、
   重定向、管道和逻辑操作符会 fail-closed，且路径参数在执行前经过 workspace realpath 检查。

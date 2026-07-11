@@ -4,18 +4,31 @@ from pathlib import Path
 
 
 _SHELL_CONTROL_RE = re.compile(r"(?:\r|\n|`|\$\(|[|&;<>])")
-_INLINE_INTERPRETER_FLAGS = {
-    "python": {"-c"},
-    "python3": {"-c"},
-    "py": {"-c"},
-    "pypy": {"-c"},
-    "pypy3": {"-c"},
-    "node": {"-e", "--eval"},
-    "nodejs": {"-e", "--eval"},
-    "ruby": {"-e"},
-    "perl": {"-e"},
-    "php": {"-r"},
-    "lua": {"-e"},
+_CODE_INTERPRETERS = {"py", "pypy", "pypy3", "node", "nodejs", "ruby", "perl", "php", "lua"}
+_BUILD_AND_LIFECYCLE_COMMANDS = {
+    "ant",
+    "bundle",
+    "bun",
+    "cargo",
+    "cmake",
+    "composer",
+    "deno",
+    "dotnet",
+    "gradle",
+    "gradlew",
+    "go",
+    "make",
+    "mvn",
+    "ninja",
+    "npm",
+    "npx",
+    "pip",
+    "pip3",
+    "pnpm",
+    "poetry",
+    "rake",
+    "uv",
+    "yarn",
 }
 _SHELL_WRAPPER_FLAGS = {
     "sh": {"-c"},
@@ -32,7 +45,7 @@ def contains_shell_control_syntax(command: str) -> bool:
 
 
 def forbidden_interpreter_reason(command: str) -> str | None:
-    """Identify argv forms that can hide arbitrary code from path validation."""
+    """Identify argv forms that can execute code outside structured harness tools."""
     try:
         tokens = shlex.split(command, posix=False)
     except ValueError:
@@ -45,12 +58,15 @@ def forbidden_interpreter_reason(command: str) -> str | None:
         executable = executable[:-4]
     if executable == "env":
         return "process wrapper commands are denied and cannot be approved"
-    arguments = {token.lower() for token in normalized_tokens[1:]}
-    interpreter_flags = _INLINE_INTERPRETER_FLAGS.get(executable, set())
+    arguments = [token.lower() for token in normalized_tokens[1:]]
     if re.fullmatch(r"python\d*(?:\.\d+)*", executable):
-        interpreter_flags = {"-c"}
-    if arguments.intersection(interpreter_flags):
-        return "inline interpreter code is denied and cannot be approved"
+        if arguments[:2] == ["-m", "compileall"]:
+            return None
+        return "Python interpreter code execution is denied and cannot be approved; use RUN_TESTS or python -m compileall"
+    if executable in _CODE_INTERPRETERS:
+        return "interpreter code execution is denied and cannot be approved"
+    if executable in _BUILD_AND_LIFECYCLE_COMMANDS:
+        return "build and lifecycle commands are denied and cannot be approved; use RUN_TESTS"
     if executable in _SHELL_WRAPPER_FLAGS:
         return "shell wrapper commands are denied as potentially destructive and cannot be approved"
     return None

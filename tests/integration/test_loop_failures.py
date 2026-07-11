@@ -30,7 +30,7 @@ def test_mock_llm_exhaustion_fails_and_audits_session(tmp_path: Path):
     ("responses", "max_steps", "expected_status", "expected_steps", "has_pending_approval"),
     [
         (['{"type":"finish","message":"done"}'], 2, SessionStatus.FINISHED, 1, False),
-        (['{"type":"run_shell","command":"git push"}'], 2, SessionStatus.WAITING_APPROVAL, 1, True),
+        (['{"type":"run_shell","command":"rm src/app.py"}'], 2, SessionStatus.WAITING_APPROVAL, 1, True),
         (['not valid json'], 1, SessionStatus.MAX_STEPS, 1, False),
         ([], 2, SessionStatus.FAILED, 0, False),
     ],

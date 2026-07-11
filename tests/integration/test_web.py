@@ -120,3 +120,24 @@ def test_approving_action_executes_it_and_ends_recovery_round(tmp_path: Path):
     assert response.status_code == 200
     assert "approval_recovery_ended" in response.text
     assert (tmp_path / ".env").read_text() == "MODE=prod"
+
+
+def test_web_can_mark_executing_approval_failed(tmp_path: Path):
+    store = SQLiteStore(tmp_path / "state.sqlite3", workspace_root=tmp_path)
+    waiting = AgentLoop.for_workspace(
+        tmp_path,
+        MockLLM(['{"type":"write_file","path":".env","content":"MODE=prod"}']),
+        store,
+    ).run("configure production")
+    store.begin_approval_resolution(waiting.pending_approval_id, approved=True)
+    client = TestClient(create_app(store.db_path, workspace_root=tmp_path))
+
+    response = client.post(
+        f"/approvals/{waiting.pending_approval_id}/mark-failed",
+        data={"reason": "crashed worker"},
+        follow_redirects=True,
+    )
+
+    assert response.status_code == 200
+    assert store.get_approval(waiting.pending_approval_id).status == "failed"
+    assert "approval_manually_failed" in response.text

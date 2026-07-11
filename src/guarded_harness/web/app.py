@@ -83,6 +83,16 @@ def create_app(store_path: Path | None = None, workspace_root: Path | None = Non
     def deny(approval_id: str):
         return _resume_approval(store, approval_id, approved=False)
 
+    @app.post("/approvals/{approval_id}/mark-failed")
+    def mark_failed(approval_id: str, reason: str = Form(...)):
+        try:
+            approval = store.mark_approval_failed(approval_id, reason)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="approval not found") from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        return RedirectResponse(url=f"/sessions/{approval.session_id}", status_code=303)
+
     return app
 
 

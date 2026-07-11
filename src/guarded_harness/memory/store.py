@@ -284,6 +284,33 @@ class SQLiteStore:
             datetime.fromisoformat(row["resolved_at"]),
         )
 
+    def mark_approval_failed(self, approval_id: str, reason: str) -> ApprovalRequest:
+        timestamp = _now()
+        event_id = str(uuid4())
+        with self._connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            row = db.execute("SELECT * FROM approvals WHERE id = ?", (approval_id,)).fetchone()
+            if row is None:
+                raise KeyError(approval_id)
+            if row["status"] != "executing":
+                raise ValueError("approval is not executing")
+            db.execute("UPDATE approvals SET status = ? WHERE id = ?", ("failed", approval_id))
+            db.execute(
+                "UPDATE sessions SET status = ?, updated_at = ? WHERE id = ?",
+                (SessionStatus.FAILED.value, timestamp, row["session_id"]),
+            )
+            db.execute(
+                "INSERT INTO audit_events VALUES (?, ?, ?, ?, ?)",
+                (
+                    event_id,
+                    row["session_id"],
+                    "approval_manually_failed",
+                    json.dumps(redact_secrets({"approval_id": approval_id, "reason": reason})),
+                    timestamp,
+                ),
+            )
+        return self.get_approval(approval_id)
+
     def get_approval(self, approval_id: str) -> ApprovalRequest:
         with self._connect() as db:
             row = db.execute("SELECT * FROM approvals WHERE id = ?", (approval_id,)).fetchone()
