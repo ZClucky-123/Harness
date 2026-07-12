@@ -367,7 +367,7 @@ git commit -m "feat: hide guardrail demo from primary web ui"
 **Interfaces:**
 - Produces CSS classes: `shell`, `site-header`, `brand`, `nav-links`, `hero`, `status-pills`, `pill`, `chat-panel`, `message`, `message-user`, `message-agent`, `composer`, `button-primary`, `terminal-card`, `traffic-lights`, `queue-grid`, `queue-card`.
 
-- [ ] **Step 1: Write structure assertions**
+- [x] **Step 1: Write structure assertions**
 
 Add to `test_index_loads_chat_workspace_without_guardrail_nav`:
 
@@ -383,7 +383,7 @@ Add to `test_approvals_page_loads`:
     assert 'class="queue-grid"' in response.text
 ```
 
-- [ ] **Step 2: Run tests to verify failure**
+- [x] **Step 2: Run tests to verify failure**
 
 Run:
 
@@ -393,7 +393,7 @@ Run:
 
 Expected: FAIL until templates use the new classes.
 
-- [ ] **Step 3: Replace `styles.css` with Ollama tokens**
+- [x] **Step 3: Replace `styles.css` with Ollama tokens**
 
 Use CSS tokens:
 
@@ -444,7 +444,7 @@ pre { overflow-x: auto; white-space: pre-wrap; border-radius: 12px; background: 
 }
 ```
 
-- [ ] **Step 4: Update templates**
+- [x] **Step 4: Update templates**
 
 Apply these structural rules:
 
@@ -454,7 +454,7 @@ Apply these structural rules:
 - Use `.hero`, `.status-pills`, `.chat-panel`, `.composer`, `.terminal-card`, `.queue-card`.
 - Keep all form `name` attributes unchanged.
 
-- [ ] **Step 5: Run targeted web tests**
+- [x] **Step 5: Run targeted web tests**
 
 Run:
 
@@ -464,7 +464,7 @@ Run:
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/guarded_harness/web/templates src/guarded_harness/web/static/styles.css tests/integration/test_web.py
