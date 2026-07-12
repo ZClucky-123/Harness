@@ -68,7 +68,7 @@ p { color: #737373; line-height: 1.5; }
 .approval-actions form { margin: 0; }
 label { display: block; margin: 14px 0 6px; font-weight: 500; color: #000; }
 input[type="text"], input:not([type]), input[type="password"], textarea { box-sizing: border-box; width: 100%; border: 1px solid #e5e5e5; border-radius: 9999px; padding: 10px 16px; background: #fff; color: #000; font: inherit; }
-textarea { min-height: 28px; max-height: 180px; border-radius: 22px; resize: none; overflow-y: auto; }
+textarea { min-height: 36px; max-height: 180px; border-radius: 22px; resize: none; overflow-y: auto; }
 button, .button-primary { border: 0; border-radius: 9999px; background: #000; color: #fff; padding: 10px 20px; font: inherit; font-weight: 500; cursor: pointer; text-decoration: none; }
 button.deny { background: #fff; color: #991b1b; border: 1px solid #fecaca; }
 pre { overflow-x: auto; white-space: pre-wrap; border-radius: 12px; background: #fafafa; padding: 16px; color: #000; }

@@ -77,7 +77,7 @@ def test_chat_workspace_css_uses_global_scroll_and_compact_composer():
     assert ".composer, .settings-card { margin: 24px 0 64px; padding: 12px; border: 1px solid #e5e5e5; border-radius: 24px; background: #fff; }" in response.text
     assert ".composer-row { display: grid; grid-template-columns: 1fr; align-items: end; }" in response.text
     assert ".composer-submit { width: 28px; height: 28px; padding: 0; border-radius: 9999px; line-height: 1; }" in response.text
-    assert "textarea { min-height: 28px; max-height: 180px; border-radius: 22px; resize: none; overflow-y: auto; }" in response.text
+    assert "textarea { min-height: 36px; max-height: 180px; border-radius: 22px; resize: none; overflow-y: auto; }" in response.text
     assert ".composer-sticky" not in response.text
     assert ".chat-scroll" not in response.text
 
