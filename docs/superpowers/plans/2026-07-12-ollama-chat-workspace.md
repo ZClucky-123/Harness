@@ -196,7 +196,7 @@ git commit -m "feat: show recent sessions in web workspace"
 - Consumes: `_conversation_items(store)`.
 - Changes: `POST /sessions` returns `RedirectResponse(url="/", status_code=303)` on success.
 
-- [ ] **Step 1: Replace the old redirect test**
+- [x] **Step 1: Replace the old redirect test**
 
 Replace `test_starting_task_redirects_to_session_trace` with:
 
@@ -214,7 +214,7 @@ def test_starting_task_returns_to_workspace_with_saved_conversation(tmp_path: Pa
     assert "session_started" not in response.text
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run:
 
@@ -224,7 +224,7 @@ Run:
 
 Expected: FAIL because `POST /sessions` redirects to `/sessions/{id}`.
 
-- [ ] **Step 3: Change redirect**
+- [x] **Step 3: Change redirect**
 
 In `start_session`, replace:
 
@@ -238,7 +238,7 @@ with:
         return RedirectResponse(url="/", status_code=303)
 ```
 
-- [ ] **Step 4: Run targeted tests**
+- [x] **Step 4: Run targeted tests**
 
 Run:
 
@@ -248,7 +248,7 @@ Run:
 
 Expected: PASS or live-settings test failure only from old assertion expecting session-page trace text.
 
-- [ ] **Step 5: Update live-mode assertions**
+- [x] **Step 5: Update live-mode assertions**
 
 If needed, update live tests to assert workspace conversation output:
 
@@ -264,7 +264,7 @@ and:
     assert "2" in response.text
 ```
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/guarded_harness/web/app.py tests/integration/test_web.py
