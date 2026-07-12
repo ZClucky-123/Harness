@@ -88,5 +88,5 @@
 - **Subagent output key fragments:** No delegated subagent output. `Codex(main)` wrote failing web integration assertions, observed the expected red tests, then implemented the minimal template/CSS changes.
 - **Manual intervention:** User's requested changes drove all UI decisions: keep only `View trace`, remove `Copy command`, use underlined text for `Technical details`, pin left sidebar with its own scroll, and align composer width to chat content.
 - **Verification:** `pytest -q` -> 235 passed, 2 skipped, 1 warning. `python -m compileall src` -> exit 0. `git diff --check` -> exit 0.
-- **Commits:** workflow start `72877ec`; implementation `33ecf68`; completion record commit pending.
+- **Commits:** workflow start `72877ec`; implementation `33ecf68`; completion record `543f6e1`.
 - **Lesson:** Layout constants should be explicit CSS variables (`--sidebar-width`, `--content-width`) so future screenshot-driven tuning stays local and testable.
