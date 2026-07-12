@@ -7,31 +7,25 @@
   <link rel="stylesheet" href="{{ url_for('static', path='styles.css') }}">
 </head>
 <body>
-  <main class="shell chat-app">
+  <main class="shell chat-page">
     <header class="site-header">
       <a class="brand" href="/">Guarded Harness</a>
       <nav class="nav-links"><a href="/settings">Provider Settings</a><a href="/approvals">Approvals</a></nav>
     </header>
-    <section class="hero compact-hero">
+    <section class="hero chat-intro">
       <h1>Chat Workspace</h1>
       <p>Governed tasks with provider adapters and human approval.</p>
-      <div class="status-pills">
-        <span class="pill">mode: {{ settings.mode }}</span>
-        <span class="pill">model: {{ settings.model }}</span>
-        <span class="pill">key: {% if credential_configured %}configured{% else %}missing{% endif %}</span>
-      </div>
     </section>
-    <section class="chat-panel chat-scroll" id="chat-scroll">
+    <section class="chat-panel">
       <h2>Recent Sessions</h2>
       <div class="conversation-list">
+        <div class="message message-system chat-status">mode: {{ settings.mode }} · model: {{ settings.model }} · key: {% if credential_configured %}configured{% else %}missing{% endif %}</div>
         {% for item in conversation_items %}
           <article class="conversation-item">
             <div class="message message-user">
-              <strong>You</strong>
               <p>{{ item.task }}</p>
             </div>
             <div class="message message-agent">
-              <strong>Harness</strong>
               <p>{{ item.summary }}</p>
               <p>{{ item.status }} - {{ item.step_count }} steps</p>
               <a class="muted-link" href="{{ item.trace_url }}">View trace</a>
@@ -40,20 +34,16 @@
         {% endfor %}
       </div>
     </section>
-    <form class="composer composer-sticky" action="/sessions" method="post">
+    <form class="composer composer-compact" action="/sessions" method="post">
       <fieldset>
-        <legend>Task</legend>
         <label for="task">Task</label>
-        <textarea id="task" name="task" required></textarea>
+        <textarea id="task" name="task" rows="3" required></textarea>
         <button type="submit">Start task</button>
       </fieldset>
     </form>
   </main>
   <script>
-    const chat = document.getElementById("chat-scroll");
-    if (chat) {
-      chat.scrollTop = chat.scrollHeight;
-    }
+    window.scrollTo({ top: document.body.scrollHeight, behavior: "instant" });
   </script>
 </body>
 </html>

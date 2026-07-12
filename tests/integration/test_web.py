@@ -25,26 +25,33 @@ def test_index_loads_chat_workspace_without_guardrail_nav(tmp_path: Path):
     assert "mode:" in response.text
     assert "deepseek-v4-flash" in response.text
     assert 'name="api_key"' not in response.text
-    assert "chat-app" in response.text
-    assert "chat-scroll" in response.text
-    assert 'id="chat-scroll"' in response.text
-    assert "composer-sticky" in response.text
-    assert 'class="status-pills"' in response.text
+    assert "chat-page" in response.text
+    assert "chat-status" in response.text
+    assert "mode: mock · model: deepseek-v4-flash · key: missing" in response.text
+    assert "chat-scroll" not in response.text
+    assert 'id="chat-scroll"' not in response.text
+    assert "composer-compact" in response.text
+    assert 'class="status-pills"' not in response.text
     assert '<h2>Provider</h2>' not in response.text
-    assert "scrollTop = chat.scrollHeight" in response.text
+    assert "<strong>You</strong>" not in response.text
+    assert "<strong>Harness</strong>" not in response.text
+    assert "window.scrollTo" in response.text
+    assert response.text.count(">Task<") == 1
 
 
-def test_chat_workspace_css_reserves_scroll_and_composer_space():
+def test_chat_workspace_css_uses_global_scroll_and_compact_composer():
     client = TestClient(create_app())
 
     response = client.get("/static/styles.css")
 
     assert response.status_code == 200
-    assert "grid-template-rows: auto auto minmax(0, 1fr) auto" in response.text
-    assert "scroll-padding-bottom: 160px" in response.text
-    assert ".conversation-list::after { content: \"\"; display: block; height: 160px; }" in response.text
-    assert ".chat-app { height: 100vh; }" in response.text
-    assert ".composer-sticky { position: sticky" in response.text
+    assert ".chat-page" in response.text
+    assert ".site-header { position: sticky" in response.text
+    assert ".chat-panel { border: 0" in response.text
+    assert ".composer-compact" in response.text
+    assert ".composer-sticky" not in response.text
+    assert ".chat-scroll" not in response.text
+    assert "overflow-y: auto" not in response.text
 
 
 def test_index_lists_recent_sessions_as_conversation_items(tmp_path: Path):
@@ -66,6 +73,8 @@ def test_index_lists_recent_sessions_as_conversation_items(tmp_path: Path):
     assert response.text.index("first task") < response.text.index("second task")
     assert response.text.count('class="message message-user"') == 2
     assert response.text.count('class="message message-agent"') == 2
+    assert "<strong>You</strong>" not in response.text
+    assert "<strong>Harness</strong>" not in response.text
     assert "running" in response.text
     assert "0 steps" in response.text
     assert response.text.count('class="muted-link"') == 2
