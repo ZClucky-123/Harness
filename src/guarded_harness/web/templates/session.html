@@ -7,31 +7,32 @@
   <link rel="stylesheet" href="{{ url_for('static', path='styles.css') }}">
 </head>
 <body>
-  <main>
-    <header class="topbar">
-      <pre class="wordmark">GUARDED
-HARNESS</pre>
-      <nav><a href="/">Dashboard</a> <a href="/settings">Provider Settings</a> <a href="/approvals">Approvals</a></nav>
+  <main class="shell">
+    <header class="site-header">
+      <a class="brand" href="/">Guarded Harness</a>
+      <nav class="nav-links"><a href="/">Dashboard</a><a href="/settings">Provider Settings</a><a href="/approvals">Approvals</a></nav>
     </header>
-    <section class="hero-terminal compact">
-      <p class="terminal-muted">[session]</p>
+    <section class="hero">
       <h1>Session</h1>
       <p>{{ display_task }}</p>
     </section>
-    <dl class="meta-grid">
+    <dl class="meta-grid panel">
       <dt>Task</dt><dd>{{ display_task }}</dd>
       <dt>Status</dt><dd><span class="status-badge">[{{ session.status.value }}]</span></dd>
       <dt>Steps</dt><dd>{{ session.step_count }}</dd>
     </dl>
-    <h2>[+] Trace</h2>
-    <ol class="trace">
-    {% for event in events %}
-      <li>
-        <div class="event-title">[{{ loop.index }}] {{ event.event_type }}</div>
-        <pre>{{ event.payload | pretty_json }}</pre>
-      </li>
-    {% endfor %}
-    </ol>
+    <section class="terminal-card panel">
+      <div class="traffic-lights"><span></span><span></span><span></span></div>
+      <h2>Trace</h2>
+      <ol class="trace">
+      {% for event in events %}
+        <li>
+          <div class="event-title">{{ loop.index }}. {{ event.event_type }}</div>
+          <pre>{{ event.payload | pretty_json }}</pre>
+        </li>
+      {% endfor %}
+      </ol>
+    </section>
   </main>
 </body>
 </html>

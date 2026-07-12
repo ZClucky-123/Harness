@@ -25,6 +25,9 @@ def test_index_loads_chat_workspace_without_guardrail_nav(tmp_path: Path):
     assert "mode:" in response.text
     assert "deepseek-v4-flash" in response.text
     assert 'name="api_key"' not in response.text
+    assert 'class="chat-panel"' in response.text
+    assert 'class="composer"' in response.text
+    assert 'class="status-pills"' in response.text
 
 
 def test_index_lists_recent_sessions_as_conversation_items(tmp_path: Path):
@@ -283,6 +286,7 @@ def test_approvals_page_loads():
     assert "[pending]" in response.text
     assert "[executing]" in response.text
     assert "[failed]" in response.text
+    assert 'class="queue-grid"' in response.text
 
 
 def test_guardrail_demo_page_evaluates_sample_actions(tmp_path: Path):

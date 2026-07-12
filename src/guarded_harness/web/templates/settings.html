@@ -7,27 +7,25 @@
   <link rel="stylesheet" href="{{ url_for('static', path='styles.css') }}">
 </head>
 <body>
-  <main>
-    <header class="topbar">
-      <pre class="wordmark">GUARDED
-HARNESS</pre>
-      <nav><a href="/">Dashboard</a> <a href="/approvals">Approvals</a></nav>
+  <main class="shell">
+    <header class="site-header">
+      <a class="brand" href="/">Guarded Harness</a>
+      <nav class="nav-links"><a href="/">Dashboard</a><a href="/approvals">Approvals</a></nav>
     </header>
-    <section class="hero-terminal compact">
-      <p class="terminal-muted">[provider]</p>
+    <section class="hero">
       <h1>Provider Settings</h1>
       <p>key: {% if credential_configured %}configured{% else %}missing{% endif %}</p>
     </section>
-    <form class="terminal-form" action="/settings" method="post">
+    <form class="composer" action="/settings" method="post">
       <fieldset>
-        <legend>[+] Mode</legend>
+        <legend>Mode</legend>
         <div class="mode-grid">
-          <label><input type="radio" name="mode" value="mock" {% if settings.mode == "mock" %}checked{% endif %}> Mock deterministic run</label>
-          <label><input type="radio" name="mode" value="live" {% if settings.mode == "live" %}checked{% endif %}> Live OpenAI-compatible API</label>
+          <label class="mode-option"><input type="radio" name="mode" value="mock" {% if settings.mode == "mock" %}checked{% endif %}> Mock deterministic run</label>
+          <label class="mode-option"><input type="radio" name="mode" value="live" {% if settings.mode == "live" %}checked{% endif %}> Live OpenAI-compatible API</label>
         </div>
       </fieldset>
       <fieldset>
-        <legend>[+] Endpoint</legend>
+        <legend>Endpoint</legend>
         <label for="base_url">GUARDED_HARNESS_BASE_URL</label>
         <input id="base_url" name="base_url" value="{{ settings.base_url }}">
         <label for="model">GUARDED_HARNESS_MODEL</label>

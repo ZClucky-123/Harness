@@ -7,20 +7,18 @@
   <link rel="stylesheet" href="{{ url_for('static', path='styles.css') }}">
 </head>
 <body>
-  <main>
-    <header class="topbar">
-      <pre class="wordmark">GUARDED
-HARNESS</pre>
-      <nav><a href="/">Dashboard</a> <a href="/settings">Provider Settings</a></nav>
+  <main class="shell wide">
+    <header class="site-header">
+      <a class="brand" href="/">Guarded Harness</a>
+      <nav class="nav-links"><a href="/">Dashboard</a><a href="/settings">Provider Settings</a></nav>
     </header>
-    <section class="hero-terminal compact">
-      <p class="terminal-muted">[human in the loop]</p>
+    <section class="hero">
       <h1>Approvals</h1>
-      <p>| pending actions pause here before execution |</p>
+      <p>Pending actions pause here before execution.</p>
     </section>
     <section class="queue-grid">
     {% for status, items in approval_groups.items() %}
-      <div class="queue-column">
+      <div class="queue-card">
         <h2>[{{ status }}]</h2>
         {% if items %}
         <ul class="approvals">
@@ -44,7 +42,7 @@ HARNESS</pre>
         {% endfor %}
         </ul>
         {% else %}
-        <p class="terminal-muted-light">empty</p>
+        <p>empty</p>
         {% endif %}
       </div>
     {% endfor %}

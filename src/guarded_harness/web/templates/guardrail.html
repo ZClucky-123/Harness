@@ -7,20 +7,18 @@
   <link rel="stylesheet" href="{{ url_for('static', path='styles.css') }}">
 </head>
 <body>
-  <main>
-    <header class="topbar">
-      <pre class="wordmark">GUARDED
-HARNESS</pre>
-      <nav><a href="/">Dashboard</a> <a href="/settings">Provider Settings</a> <a href="/approvals">Approvals</a></nav>
+  <main class="shell wide">
+    <header class="site-header">
+      <a class="brand" href="/">Guarded Harness</a>
+      <nav class="nav-links"><a href="/">Dashboard</a><a href="/settings">Provider Settings</a><a href="/approvals">Approvals</a></nav>
     </header>
-    <section class="hero-terminal compact">
-      <p class="terminal-muted">[policy]</p>
+    <section class="hero">
       <h1>Guardrail Demo</h1>
-      <p>| deterministic action classification without relying on prompt obedience |</p>
+      <p>Deterministic action classification without relying on prompt obedience.</p>
     </section>
     <section class="queue-grid">
       {% for key, sample in samples.items() %}
-      <form class="queue-column" action="/guardrail" method="post">
+      <form class="queue-card" action="/guardrail" method="post">
         <input type="hidden" name="sample" value="{{ key }}">
         <p>{{ sample.label }}</p>
         <button type="submit">Evaluate</button>
@@ -28,8 +26,8 @@ HARNESS</pre>
       {% endfor %}
     </section>
     {% if result %}
-    <section class="result-panel">
-      <h2>[+] Result</h2>
+    <section class="panel">
+      <h2>Result</h2>
       <p>decision: {{ result.decision.decision.value }}</p>
       <p>risk: {{ result.decision.risk_level }}</p>
       <p>reason: {{ result.decision.reason }}</p>

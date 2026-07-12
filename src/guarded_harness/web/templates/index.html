@@ -7,44 +7,46 @@
   <link rel="stylesheet" href="{{ url_for('static', path='styles.css') }}">
 </head>
 <body>
-  <main>
-    <header class="topbar">
-      <pre class="wordmark">GUARDED
-HARNESS</pre>
-      <nav><a href="/settings">Provider Settings</a> <a href="/approvals">Approvals</a></nav>
+  <main class="shell">
+    <header class="site-header">
+      <a class="brand" href="/">Guarded Harness</a>
+      <nav class="nav-links"><a href="/settings">Provider Settings</a><a href="/approvals">Approvals</a></nav>
     </header>
-    <section class="hero-terminal" aria-label="Harness terminal preview">
-      <p class="terminal-muted">[agent = llm + harness]</p>
+    <section class="hero">
       <h1>Chat Workspace</h1>
-      <p>| governance guardrails | hitl state machine | provider adapters |</p>
-      <div class="prompt-row">mode: <strong>{{ settings.mode }}</strong> · model: <strong>{{ settings.model }}</strong> · key: <strong>{% if credential_configured %}configured{% else %}missing{% endif %}</strong></div>
+      <p>Governed tasks with provider adapters and human approval.</p>
+      <div class="status-pills">
+        <span class="pill">mode: {{ settings.mode }}</span>
+        <span class="pill">model: {{ settings.model }}</span>
+        <span class="pill">key: {% if credential_configured %}configured{% else %}missing{% endif %}</span>
+      </div>
     </section>
-    <section class="dashboard-grid">
-      <div class="dashboard-panel">
-        <h2>[+] Provider</h2>
+    <section class="chat-panel">
+      <div class="message message-agent">
+        <h2>Provider</h2>
         <p>mode: {{ settings.mode }}</p>
         <p>base: {{ settings.base_url }}</p>
         <p>model: {{ settings.model }}</p>
         <p>key: {% if credential_configured %}configured{% else %}missing{% endif %}</p>
       </div>
-      <div class="dashboard-panel">
-        <h2>[+] Recent Sessions</h2>
+      <div class="message message-agent">
+        <h2>Recent Sessions</h2>
         {% for item in conversation_items %}
-          <article class="conversation-item">
+          <article class="conversation-item message-user">
             <p>{{ item.task }}</p>
             <p>{{ item.summary }}</p>
-            <p>{{ item.status }} 路 {{ item.step_count }} steps</p>
-            <a href="{{ item.trace_url }}">View trace</a>
+            <p>{{ item.status }} - {{ item.step_count }} steps</p>
+            <a class="muted-link" href="{{ item.trace_url }}">View trace</a>
           </article>
         {% endfor %}
       </div>
     </section>
-    <form class="terminal-form" action="/sessions" method="post">
+    <form class="composer" action="/sessions" method="post">
       <fieldset>
-      <legend>[+] Task</legend>
-      <label for="task">Task</label>
-      <textarea id="task" name="task" required></textarea>
-      <button type="submit">Start task</button>
+        <legend>Task</legend>
+        <label for="task">Task</label>
+        <textarea id="task" name="task" required></textarea>
+        <button type="submit">Start task</button>
       </fieldset>
     </form>
   </main>
