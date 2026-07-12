@@ -26,6 +26,16 @@ def test_mock_llm_exhaustion_fails_and_audits_session(tmp_path: Path):
     assert any(event.event_type == "provider_failure" for event in events)
 
 
+def test_empty_llm_response_is_provider_failure_not_parser_error(tmp_path: Path):
+    session, store = _run_loop(tmp_path, ["   "], max_steps=2)
+    events = store.list_audit(session.id)
+
+    assert session.status is SessionStatus.FAILED
+    assert any(event.event_type == "provider_failure" for event in events)
+    assert not any(event.event_type == "parser_error" for event in events)
+    assert "empty" in str(events[-1].payload["message"])
+
+
 @pytest.mark.parametrize(
     ("responses", "max_steps", "expected_status", "expected_steps", "has_pending_approval"),
     [

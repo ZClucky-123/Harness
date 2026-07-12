@@ -3,7 +3,11 @@ import subprocess
 from pathlib import Path
 
 from guarded_harness.core.observations import FeedbackKind, Observation
-from guarded_harness.governance.shell_command import argv_paths_within_workspace, parse_shell_argv
+from guarded_harness.governance.shell_command import (
+    argv_paths_within_workspace,
+    parse_shell_argv,
+    unsupported_direct_command_reason,
+)
 
 
 def run_shell(workspace_root: Path, command: object) -> Observation:
@@ -13,6 +17,9 @@ def run_shell(workspace_root: Path, command: object) -> Observation:
         argv = parse_shell_argv(command)
     except ValueError as exc:
         return Observation(False, FeedbackKind.COMMAND_ERROR, message=str(exc))
+    unsupported_reason = unsupported_direct_command_reason(argv)
+    if unsupported_reason is not None:
+        return Observation(False, FeedbackKind.POLICY_DENIED, message=unsupported_reason)
     if not argv_paths_within_workspace(argv, workspace_root):
         return Observation(False, FeedbackKind.POLICY_DENIED, message="shell path is outside workspace")
     if _has_external_helper_option(argv):

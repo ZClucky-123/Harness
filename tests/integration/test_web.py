@@ -1,4 +1,4 @@
-from pathlib import Path
+﻿from pathlib import Path
 import sqlite3
 
 from fastapi.testclient import TestClient
@@ -15,20 +15,23 @@ def test_index_loads_chat_workspace_without_guardrail_nav(tmp_path: Path):
     response = client.get("/")
 
     assert response.status_code == 200
-    assert "Chat Workspace" in response.text
-    assert "Provider Settings" in response.text
-    assert "Approvals" in response.text
+    assert "对话工作区" in response.text
+    assert "模型设置" in response.text
+    assert "审批" in response.text
     assert "Guardrail Demo" not in response.text
     assert "Change configuration" not in response.text
-    assert "Recent Sessions" in response.text
+    assert "最近会话" in response.text
+    assert "新建会话" in response.text
+    assert 'class="app-layout"' in response.text
+    assert 'class="session-sidebar"' in response.text
     assert "/guardrail" not in response.text
-    assert "mode:" in response.text
+    assert "模式：" in response.text
     assert "deepseek-v4-flash" in response.text
     assert 'name="api_key"' not in response.text
     assert "chat-page" in response.text
     assert "composer-status" in response.text
     assert "message-system" not in response.text
-    assert "mode: mock · model: deepseek-v4-flash · key: missing" in response.text
+    assert "模拟模式 · deepseek-v4-flash · 密钥未配置" in response.text
     assert "chat-scroll" not in response.text
     assert 'id="chat-scroll"' not in response.text
     assert "composer-fixed" in response.text
@@ -41,6 +44,7 @@ def test_index_loads_chat_workspace_without_guardrail_nav(tmp_path: Path):
     assert ">Task<" not in response.text
     assert ">Start task<" not in response.text
     assert 'aria-label="Start task"' in response.text
+    assert "↑" in response.text
 
 
 def test_chat_workspace_css_uses_global_scroll_and_compact_composer():
@@ -71,7 +75,7 @@ def test_index_lists_recent_sessions_as_conversation_items(tmp_path: Path):
     response = client.get("/")
 
     assert response.status_code == 200
-    assert "Chat Workspace" in response.text
+    assert "对话工作区" in response.text
     assert "first task" in response.text
     assert "second task" in response.text
     assert "first done" in response.text
@@ -81,8 +85,8 @@ def test_index_lists_recent_sessions_as_conversation_items(tmp_path: Path):
     assert response.text.count('class="message message-agent"') == 2
     assert "<strong>You</strong>" not in response.text
     assert "<strong>Harness</strong>" not in response.text
-    assert "running" in response.text
-    assert "0 steps" in response.text
+    assert "运行中" in response.text
+    assert "0 步" in response.text
     assert response.text.count('class="muted-link"') == 2
 
 
@@ -99,6 +103,73 @@ def test_index_redacts_recent_session_summary_secrets(tmp_path: Path):
     assert "[REDACTED]" in response.text
 
 
+def test_index_renders_markdown_summary_safely(tmp_path: Path):
+    store = SQLiteStore(tmp_path / "state.sqlite3", workspace_root=tmp_path)
+    session = store.create_session("markdown task", tmp_path)
+    store.append_audit(session.id, "finished", {"message": "**完成**\n- <script>alert(1)</script>"})
+    client = TestClient(create_app(store.db_path, workspace_root=tmp_path))
+
+    response = client.get("/")
+
+    assert response.status_code == 200
+    assert "<strong>完成</strong>" in response.text
+    assert "<li>&lt;script&gt;alert(1)&lt;/script&gt;</li>" in response.text
+    assert "<script>alert(1)</script>" not in response.text
+
+
+def test_index_renders_common_markdown_blocks_safely(tmp_path: Path):
+    store = SQLiteStore(tmp_path / "state.sqlite3", workspace_root=tmp_path)
+    session = store.create_session("markdown blocks", tmp_path)
+    store.append_audit(
+        session.id,
+        "finished",
+        {
+            "message": (
+                "# 标题\n"
+                "> 引用\n"
+                "[链接](https://example.test)\n"
+                "| A | B |\n"
+                "| --- | --- |\n"
+                "| 1 | 2 |\n"
+                "```python\n"
+                "print('<safe>')\n"
+                "```"
+            )
+        },
+    )
+    client = TestClient(create_app(store.db_path, workspace_root=tmp_path))
+
+    response = client.get("/")
+
+    assert response.status_code == 200
+    assert "<h1>标题</h1>" in response.text
+    assert "<blockquote>引用</blockquote>" in response.text
+    assert '<a href="https://example.test" rel="nofollow noopener">链接</a>' in response.text
+    assert "<table>" in response.text
+    assert "<th>A</th>" in response.text
+    assert "<td>1</td>" in response.text
+    assert "<pre><code>print(&#x27;&lt;safe&gt;&#x27;)" in response.text
+    assert "<safe>" not in response.text
+
+
+def test_waiting_approval_session_shows_approval_card_in_chat(tmp_path: Path):
+    store = SQLiteStore(tmp_path / "state.sqlite3", workspace_root=tmp_path)
+    waiting = AgentLoop.for_workspace(
+        tmp_path,
+        MockLLM(['{"type":"write_file","path":".env","content":"MODE=prod"}']),
+        store,
+    ).run("configure production")
+    client = TestClient(create_app(store.db_path, workspace_root=tmp_path))
+
+    response = client.get("/")
+
+    assert response.status_code == 200
+    assert 'class="approval-card"' in response.text
+    assert "需要审批" in response.text
+    assert "modifying an environment file requires approval" in response.text
+    assert waiting.pending_approval_id in response.text
+
+
 def test_provider_settings_page_loads_defaults(tmp_path: Path, monkeypatch):
     monkeypatch.setattr("guarded_harness.web.app._credential_store", lambda: _FakeCredentials(None))
     client = TestClient(create_app(tmp_path / "state.sqlite3", workspace_root=tmp_path))
@@ -106,10 +177,10 @@ def test_provider_settings_page_loads_defaults(tmp_path: Path, monkeypatch):
     response = client.get("/settings")
 
     assert response.status_code == 200
-    assert "Provider Settings" in response.text
+    assert "模型设置" in response.text
     assert "https://njusehub.info/v1" in response.text
     assert "deepseek-v4-flash" in response.text
-    assert "key: missing" in response.text
+    assert "密钥未配置" in response.text
 
 
 def test_primary_navigation_omits_guardrail_link_but_direct_page_loads(tmp_path: Path, monkeypatch):
@@ -147,9 +218,9 @@ def test_provider_settings_save_updates_dashboard_without_persisting_key(tmp_pat
     )
 
     assert response.status_code == 200
-    assert "mode: live" in response.text
-    assert "model: qwen-turbo" in response.text
-    assert "key: configured" in response.text
+    assert "实时模式" in response.text
+    assert "qwen-turbo" in response.text
+    assert "密钥已配置" in response.text
     assert credentials.key == "settings-secret"
     assert "settings-secret" not in response.text
     assert "settings-secret" not in (tmp_path / ".guarded-harness" / "provider.json").read_text()
@@ -161,10 +232,10 @@ def test_starting_task_returns_to_workspace_with_saved_conversation(tmp_path: Pa
     response = client.post("/sessions", data={"task": "inspect the repository"}, follow_redirects=True)
 
     assert response.status_code == 200
-    assert "Chat Workspace" in response.text
+    assert "对话工作区" in response.text
     assert "inspect the repository" in response.text
     assert "mock run completed" in response.text
-    assert "View trace" in response.text
+    assert "查看轨迹" in response.text
     assert "session_started" not in response.text
 
 
@@ -190,7 +261,7 @@ def test_starting_task_uses_saved_live_settings_without_retyping_key(tmp_path: P
     response = client.post("/sessions", data={"task": "use saved provider"}, follow_redirects=True)
 
     assert response.status_code == 200
-    assert "Chat Workspace" in response.text
+    assert "对话工作区" in response.text
     assert "live done" in response.text
     assert captured == {
         "base_url": "https://njusehub.info/v1",
@@ -279,7 +350,7 @@ def test_web_live_mode_uses_submitted_provider_config_without_persisting_key(tmp
     )
 
     assert response.status_code == 200
-    assert "Chat Workspace" in response.text
+    assert "对话工作区" in response.text
     assert "2" in response.text
     assert captured == {
         "base_url": "https://njusehub.info/v1",
@@ -320,7 +391,7 @@ def test_approvals_page_loads():
     response = client.get("/approvals")
 
     assert response.status_code == 200
-    assert "Approvals" in response.text
+    assert "审批" in response.text
     assert "[pending]" in response.text
     assert "[executing]" in response.text
     assert "[failed]" in response.text
@@ -423,6 +494,115 @@ def test_approving_action_executes_it_and_ends_recovery_round(tmp_path: Path):
     assert response.status_code == 200
     assert "approval_recovery_ended" in response.text
     assert (tmp_path / ".env").read_text() == "MODE=prod"
+
+
+def test_live_approval_resume_reuses_saved_provider_and_continues_loop(tmp_path: Path, monkeypatch):
+    credentials = _FakeCredentials("stored-live-secret")
+    constructed = []
+    responses = [
+        '{"type":"write_file","path":".env","content":"MODE=prod"}',
+        '{"type":"finish","message":"live approval completed"}',
+    ]
+
+    class FakeProvider:
+        def __init__(self, base_url: str, model: str, api_key: str, timeout: float):
+            constructed.append({"base_url": base_url, "model": model, "api_key": api_key, "timeout": timeout})
+
+        def complete(self, context):
+            return responses.pop(0)
+
+    monkeypatch.setattr("guarded_harness.web.app._credential_store", lambda: credentials)
+    monkeypatch.setattr("guarded_harness.web.app.OpenAICompatibleProvider", FakeProvider)
+    client = TestClient(create_app(tmp_path / "state.sqlite3", workspace_root=tmp_path))
+    client.post(
+        "/settings",
+        data={"mode": "live", "base_url": "https://njusehub.info/v1", "model": "glm-5.2"},
+    )
+    waiting_response = client.post(
+        "/sessions",
+        data={"task": "configure production"},
+        follow_redirects=True,
+    )
+    store = SQLiteStore(tmp_path / "state.sqlite3", workspace_root=tmp_path)
+    waiting = store.list_sessions()[0]
+
+    response = client.post(f"/approvals/{waiting.pending_approval_id}/approve", follow_redirects=True)
+
+    assert waiting_response.status_code == 200
+    assert response.status_code == 200
+    assert "live approval completed" in response.text
+    assert "approval_recovery_ended" not in response.text
+    assert (tmp_path / ".env").read_text(encoding="utf-8") == "MODE=prod"
+    assert constructed == [
+        {
+            "base_url": "https://njusehub.info/v1",
+            "model": "glm-5.2",
+            "api_key": "stored-live-secret",
+            "timeout": 30.0,
+        },
+        {
+            "base_url": "https://njusehub.info/v1",
+            "model": "glm-5.2",
+            "api_key": "stored-live-secret",
+            "timeout": 30.0,
+        },
+    ]
+
+
+def test_live_approval_resume_reuses_unsaved_submitted_key_without_persisting_it(tmp_path: Path, monkeypatch):
+    credentials = _FakeCredentials(None)
+    constructed = []
+    responses = [
+        '{"type":"write_file","path":".env","content":"MODE=prod"}',
+        '{"type":"finish","message":"unsaved key resumed"}',
+    ]
+
+    class FakeProvider:
+        def __init__(self, base_url: str, model: str, api_key: str, timeout: float):
+            constructed.append({"base_url": base_url, "model": model, "api_key": api_key, "timeout": timeout})
+
+        def complete(self, context):
+            return responses.pop(0)
+
+    monkeypatch.setattr("guarded_harness.web.app._credential_store", lambda: credentials)
+    monkeypatch.setattr("guarded_harness.web.app.OpenAICompatibleProvider", FakeProvider)
+    client = TestClient(create_app(tmp_path / "state.sqlite3", workspace_root=tmp_path))
+    waiting_response = client.post(
+        "/sessions",
+        data={
+            "task": "configure production",
+            "mode": "live",
+            "base_url": "https://njusehub.info/v1",
+            "model": "glm-5.2",
+            "api_key": "temporary-live-secret",
+        },
+        follow_redirects=True,
+    )
+    store = SQLiteStore(tmp_path / "state.sqlite3", workspace_root=tmp_path)
+    waiting = store.list_sessions()[0]
+
+    response = client.post(f"/approvals/{waiting.pending_approval_id}/approve", follow_redirects=True)
+
+    assert waiting_response.status_code == 200
+    assert response.status_code == 200
+    assert "unsaved key resumed" in response.text
+    assert credentials.key is None
+    assert "temporary-live-secret" not in response.text
+    assert "temporary-live-secret" not in (tmp_path / "state.sqlite3").read_bytes().decode("utf-8", errors="ignore")
+    assert constructed == [
+        {
+            "base_url": "https://njusehub.info/v1",
+            "model": "glm-5.2",
+            "api_key": "temporary-live-secret",
+            "timeout": 30.0,
+        },
+        {
+            "base_url": "https://njusehub.info/v1",
+            "model": "glm-5.2",
+            "api_key": "temporary-live-secret",
+            "timeout": 30.0,
+        },
+    ]
 
 
 def test_web_can_mark_executing_approval_failed(tmp_path: Path):

@@ -8,6 +8,7 @@ from guarded_harness.governance.shell_command import (
     contains_shell_control_syntax,
     forbidden_interpreter_reason,
     parse_shell_argv,
+    unsupported_direct_command_reason,
 )
 
 
@@ -64,6 +65,9 @@ def _classify_shell_segment(command: str, workspace_root: Path) -> PolicyDecisio
 
     executable = tokens[0]
     arguments = tokens[1:]
+    unsupported_reason = unsupported_direct_command_reason(raw_tokens)
+    if unsupported_reason is not None:
+        return deny(unsupported_reason)
     if _is_destructive(executable, arguments):
         return deny("destructive shell command is denied")
     wrapper_command = _wrapper_command(executable, arguments)
@@ -181,7 +185,7 @@ def _writes_environment_file(command: str, executable: str, arguments: list[str]
 
 
 def _is_known_safe_command(executable: str, arguments: list[str]) -> bool:
-    if executable in {"cat", "type", "dir", "ls", "pwd", "whoami", "findstr", "get-content", "get-childitem"}:
+    if executable in {"cat", "ls", "pwd", "whoami", "findstr", "get-content", "get-childitem"}:
         return True
     if executable == "rg":
         return _is_safe_rg_argv(arguments)

@@ -7,43 +7,93 @@
   <link rel="stylesheet" href="{{ url_for('static', path='styles.css') }}">
 </head>
 <body>
-  <main class="shell chat-page">
+  <main class="chat-page">
     <header class="site-header">
       <a class="brand" href="/">Guarded Harness</a>
-      <nav class="nav-links"><a href="/settings">Provider Settings</a><a href="/approvals">Approvals</a></nav>
+      <nav class="nav-links">
+        <a class="active" href="/">对话</a>
+        <a href="/settings">模型设置</a>
+        <a href="/approvals">审批{% if pending_approval_count %}<span class="nav-count">{{ pending_approval_count }}</span>{% endif %}</a>
+      </nav>
     </header>
-    <section class="hero chat-intro">
-      <h1>Chat Workspace</h1>
-      <p>Governed tasks with provider adapters and human approval.</p>
-    </section>
-    <section class="chat-panel">
-      <h2>Recent Sessions</h2>
-      <div class="conversation-list">
-        {% for item in conversation_items %}
-          <article class="conversation-item">
-            <div class="message message-user">
-              <p>{{ item.task }}</p>
-            </div>
-            <div class="message message-agent">
-              <p>{{ item.summary }}</p>
-              <p>{{ item.status }} - {{ item.step_count }} steps</p>
-              <a class="muted-link" href="{{ item.trace_url }}">View trace</a>
-            </div>
-          </article>
-        {% endfor %}
-      </div>
-    </section>
+
+    <div class="app-layout">
+      <aside class="session-sidebar">
+        <a class="new-session" href="#task">+ 新建会话</a>
+        <h2>最近会话</h2>
+        <nav class="sidebar-list">
+          {% for item in sidebar_items %}
+            <a class="sidebar-item" href="{{ item.trace_url }}">
+              <span>{{ item.task }}</span>
+              <small>{{ item.status_label }} · {{ item.step_count }} 步</small>
+            </a>
+          {% else %}
+            <p class="empty-state">暂无会话</p>
+          {% endfor %}
+        </nav>
+      </aside>
+
+      <section class="chat-main">
+        <section class="hero chat-intro">
+          <h1>对话工作区</h1>
+          <p>带治理护栏、人工审批和 Provider 适配的本地编码 Agent。</p>
+        </section>
+
+        <section class="chat-panel">
+          <h2>最近会话</h2>
+          <div class="conversation-list">
+            {% for item in conversation_items %}
+              <article class="conversation-item">
+                <div class="message message-user">
+                  <p>{{ item.task }}</p>
+                </div>
+                <div class="message message-agent">
+                  <div class="markdown-body">{{ item.summary | markdown }}</div>
+                  <p class="run-status">{{ item.status_label }} · {{ item.step_count }} 步</p>
+                  {% if item.approval %}
+                    <div class="approval-card">
+                      <h3>需要审批</h3>
+                      <p>风险：{{ item.approval.reason }}</p>
+                      <pre>{{ item.approval.action_json }}</pre>
+                      <div class="approval-actions">
+                        <form action="/approvals/{{ item.approval.id }}/approve" method="post"><button type="submit">批准本次</button></form>
+                        <form action="/approvals/{{ item.approval.id }}/deny" method="post"><button class="deny" type="submit">拒绝</button></form>
+                      </div>
+                    </div>
+                  {% endif %}
+                  <a class="muted-link" href="{{ item.trace_url }}">查看轨迹</a>
+                </div>
+              </article>
+            {% else %}
+              <p class="empty-state">在下方输入任务开始新的会话。</p>
+            {% endfor %}
+          </div>
+        </section>
+      </section>
+    </div>
+
     <form class="composer composer-fixed" action="/sessions" method="post">
       <fieldset>
-        <div class="composer-status">mode: {{ settings.mode }} · model: {{ settings.model }} · key: {% if credential_configured %}configured{% else %}missing{% endif %}</div>
+        <div class="composer-status">模式：{{ provider_status }}</div>
         <div class="composer-row">
-          <textarea id="task" name="task" rows="1" placeholder="Message Guarded Harness..." aria-label="Task" required></textarea>
+          <textarea id="task" name="task" rows="1" placeholder="向 Guarded Harness 发送消息" aria-label="Task" required></textarea>
           <button class="composer-submit" type="submit" aria-label="Start task">↑</button>
         </div>
       </fieldset>
     </form>
   </main>
   <script>
+    const taskInput = document.querySelector("#task");
+    taskInput?.addEventListener("input", () => {
+      taskInput.style.height = "auto";
+      taskInput.style.height = `${Math.min(taskInput.scrollHeight, 180)}px`;
+    });
+    taskInput?.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
+        event.preventDefault();
+        taskInput.form?.requestSubmit();
+      }
+    });
     window.scrollTo({ top: document.body.scrollHeight, behavior: "instant" });
   </script>
 </body>

@@ -1,10 +1,13 @@
+import html
 import json
 from pathlib import Path
+import re
 
 from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from markupsafe import Markup
 
 from guarded_harness.config.credentials import CredentialStore
 from guarded_harness.config.loader import load_config
@@ -21,6 +24,7 @@ from guarded_harness.governance.redaction import redact_secrets
 _PACKAGE_DIR = Path(__file__).resolve().parent
 _TEMPLATES = Jinja2Templates(directory=str(_PACKAGE_DIR / "templates"))
 _TEMPLATES.env.filters["pretty_json"] = lambda value: json.dumps(value, ensure_ascii=False, indent=2)
+_TEMPLATES.env.filters["markdown"] = lambda value: Markup(_render_markdown(str(value)))
 _DEFAULT_BASE_URL = "https://njusehub.info/v1"
 _DEFAULT_MODEL = "deepseek-v4-flash"
 _VALID_MODES = {"mock", "live"}
@@ -99,20 +103,190 @@ def _loop_for_provider(workspace_root: Path, store: SQLiteStore, provider: LLMPr
     return AgentLoop.for_workspace(workspace_root, provider, store)
 
 
+def _record_provider_settings(store: SQLiteStore, session_id: str, settings: dict[str, str]) -> None:
+    store.append_audit(
+        session_id,
+        "provider_configured",
+        {
+            "mode": settings["mode"],
+            "base_url": settings["base_url"],
+            "model": settings["model"],
+        },
+    )
+
+
+def _provider_settings_for_session(store: SQLiteStore, session_id: str) -> dict[str, str] | None:
+    for event in reversed(store.list_audit(session_id)):
+        if event.event_type != "provider_configured":
+            continue
+        payload = event.payload
+        mode = payload.get("mode")
+        base_url = payload.get("base_url")
+        model = payload.get("model")
+        if isinstance(mode, str) and isinstance(base_url, str) and isinstance(model, str):
+            return {"mode": mode, "base_url": base_url, "model": model}
+    return None
+
+
+def _provider_status(settings: dict[str, str], credential_configured: bool) -> str:
+    mode_label = "实时模式" if settings["mode"] == "live" else "模拟模式"
+    key_label = "密钥已配置" if credential_configured else "密钥未配置"
+    return f"{mode_label} · {settings['model']} · {key_label}"
+
+
+def _status_label(status: str) -> str:
+    return {
+        "running": "运行中",
+        "waiting_approval": "等待审批",
+        "finished": "已完成",
+        "failed": "执行失败",
+        "max_steps": "达到最大步数",
+    }.get(status, status)
+
+
+def _pending_approval_count(store: SQLiteStore) -> int:
+    return len(store.list_pending_approvals())
+
+
 def _conversation_items(store: SQLiteStore, limit: int = 12) -> list[dict[str, object]]:
     return [_conversation_item(store, session) for session in reversed(store.list_sessions(limit))]
 
 
 def _conversation_item(store: SQLiteStore, session) -> dict[str, object]:
     events = store.list_audit(session.id)
-    return {
+    item = {
         "id": session.id,
         "task": redact_secrets(session.task),
         "status": session.status.value,
+        "status_label": _status_label(session.status.value),
         "step_count": session.step_count,
         "summary": _session_summary(events),
         "trace_url": f"/sessions/{session.id}",
     }
+    if session.pending_approval_id:
+        try:
+            approval = store.get_approval(session.pending_approval_id)
+            item["approval"] = {
+                "id": approval.id,
+                "status": approval.status,
+                "reason": approval.redacted_reason,
+                "action_json": approval.redacted_action_json,
+            }
+        except KeyError:
+            item["approval"] = None
+    else:
+        item["approval"] = None
+    return item
+
+
+def _render_markdown(value: str) -> str:
+    lines = value.splitlines() or [""]
+    rendered: list[str] = []
+    in_list = False
+    in_code = False
+    code_lines: list[str] = []
+    index = 0
+    while index < len(lines):
+        line = lines[index]
+        if line.strip().startswith("```"):
+            if in_list:
+                rendered.append("</ul>")
+                in_list = False
+            if in_code:
+                rendered.append(f"<pre><code>{''.join(code_lines)}</code></pre>")
+                code_lines = []
+                in_code = False
+            else:
+                in_code = True
+            index += 1
+            continue
+        if in_code:
+            code_lines.append(f"{html.escape(line)}\n")
+            index += 1
+            continue
+        if _is_table_start(lines, index):
+            if in_list:
+                rendered.append("</ul>")
+                in_list = False
+            table_html, consumed = _render_table(lines[index:])
+            rendered.append(table_html)
+            index += consumed
+            continue
+        escaped = html.escape(line)
+        heading = re.match(r"^(#{1,6})\s+(.+)$", escaped)
+        if heading:
+            if in_list:
+                rendered.append("</ul>")
+                in_list = False
+            level = len(heading.group(1))
+            rendered.append(f"<h{level}>{_render_inline_markdown(heading.group(2))}</h{level}>")
+            index += 1
+            continue
+        if escaped.startswith("&gt; "):
+            if in_list:
+                rendered.append("</ul>")
+                in_list = False
+            rendered.append(f"<blockquote>{_render_inline_markdown(escaped[5:])}</blockquote>")
+            index += 1
+            continue
+        if escaped.startswith("- "):
+            if not in_list:
+                rendered.append("<ul>")
+                in_list = True
+            rendered.append(f"<li>{_render_inline_markdown(escaped[2:])}</li>")
+            index += 1
+            continue
+        if in_list:
+            rendered.append("</ul>")
+            in_list = False
+        if escaped.strip():
+            rendered.append(f"<p>{_render_inline_markdown(escaped)}</p>")
+        index += 1
+    if in_list:
+        rendered.append("</ul>")
+    if in_code:
+        rendered.append(f"<pre><code>{''.join(code_lines)}</code></pre>")
+    return "".join(rendered)
+
+
+def _render_inline_markdown(value: str) -> str:
+    value = re.sub(
+        r"\[([^\]]+)\]\((https?://[^)\s]+)\)",
+        r'<a href="\2" rel="nofollow noopener">\1</a>',
+        value,
+    )
+    value = re.sub(r"`([^`]+)`", r"<code>\1</code>", value)
+    value = re.sub(r"\*\*([^*]+)\*\*", r"<strong>\1</strong>", value)
+    value = re.sub(r"\*([^*]+)\*", r"<em>\1</em>", value)
+    return value
+
+
+def _is_table_start(lines: list[str], index: int) -> bool:
+    if index + 1 >= len(lines):
+        return False
+    return (
+        lines[index].strip().startswith("|")
+        and re.fullmatch(r"\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*", lines[index + 1]) is not None
+    )
+
+
+def _table_cells(line: str) -> list[str]:
+    return [cell.strip() for cell in line.strip().strip("|").split("|")]
+
+
+def _render_table(lines: list[str]) -> tuple[str, int]:
+    headers = _table_cells(lines[0])
+    rows: list[list[str]] = []
+    index = 2
+    while index < len(lines) and lines[index].strip().startswith("|"):
+        rows.append(_table_cells(lines[index]))
+        index += 1
+    header_html = "".join(f"<th>{_render_inline_markdown(html.escape(cell))}</th>" for cell in headers)
+    rows_html = "".join(
+        "<tr>" + "".join(f"<td>{_render_inline_markdown(html.escape(cell))}</td>" for cell in row) + "</tr>"
+        for row in rows
+    )
+    return f"<table><thead><tr>{header_html}</tr></thead><tbody>{rows_html}</tbody></table>", index
 
 
 def _session_summary(events) -> str:
@@ -134,6 +308,7 @@ def _session_summary(events) -> str:
 def create_app(store_path: Path | None = None, workspace_root: Path | None = None) -> FastAPI:
     """Create a local, deterministic WebUI backed by a workspace-local store."""
     store, root = _store_for(store_path, workspace_root)
+    live_session_keys: dict[str, str] = {}
     app = FastAPI(title="Guarded Harness")
     app.mount("/static", StaticFiles(directory=str(_PACKAGE_DIR / "static")), name="static")
 
@@ -141,14 +316,18 @@ def create_app(store_path: Path | None = None, workspace_root: Path | None = Non
     def index(request: Request):
         settings = _load_provider_settings(root)
         credential_configured = _credential_store().status()
+        conversation_items = _conversation_items(store)
         return _TEMPLATES.TemplateResponse(
             request,
             "index.html",
             {
-                "title": "Chat Workspace",
+                "title": "对话工作区",
                 "settings": settings,
                 "credential_configured": credential_configured,
-                "conversation_items": _conversation_items(store),
+                "provider_status": _provider_status(settings, credential_configured),
+                "conversation_items": conversation_items,
+                "sidebar_items": conversation_items,
+                "pending_approval_count": _pending_approval_count(store),
             },
         )
 
@@ -158,9 +337,10 @@ def create_app(store_path: Path | None = None, workspace_root: Path | None = Non
             request,
             "settings.html",
             {
-                "title": "Provider Settings",
+                "title": "模型设置",
                 "settings": _load_provider_settings(root),
                 "credential_configured": _credential_store().status(),
+                "pending_approval_count": _pending_approval_count(store),
             },
         )
 
@@ -195,6 +375,13 @@ def create_app(store_path: Path | None = None, workspace_root: Path | None = Non
             session = _loop_for_provider(root, store, provider).run(task)
         else:
             session = _finish_loop(root, store, "mock run completed").run(task)
+        _record_provider_settings(
+            store,
+            session.id,
+            {"mode": selected_mode, "base_url": selected_base_url, "model": selected_model},
+        )
+        if selected_mode == "live" and api_key.strip():
+            live_session_keys[session.id] = api_key.strip()
         return RedirectResponse(url="/", status_code=303)
 
     @app.get("/sessions/{session_id}")
@@ -210,6 +397,8 @@ def create_app(store_path: Path | None = None, workspace_root: Path | None = Non
                 "title": "Session",
                 "session": session,
                 "display_task": redact_secrets(session.task),
+                "status_label": _status_label(session.status.value),
+                "pending_approval_count": _pending_approval_count(store),
                 "events": store.list_audit(session_id),
             },
         )
@@ -224,7 +413,12 @@ def create_app(store_path: Path | None = None, workspace_root: Path | None = Non
         return _TEMPLATES.TemplateResponse(
             request,
             "approvals.html",
-            {"title": "Approvals", "approvals": unfinished, "approval_groups": grouped},
+            {
+                "title": "审批",
+                "approvals": unfinished,
+                "approval_groups": grouped,
+                "pending_approval_count": _pending_approval_count(store),
+            },
         )
 
     @app.get("/guardrail")
@@ -252,11 +446,11 @@ def create_app(store_path: Path | None = None, workspace_root: Path | None = Non
 
     @app.post("/approvals/{approval_id}/approve")
     def approve(approval_id: str):
-        return _resume_approval(store, approval_id, approved=True)
+        return _resume_approval(store, approval_id, approved=True, live_session_keys=live_session_keys)
 
     @app.post("/approvals/{approval_id}/deny")
     def deny(approval_id: str):
-        return _resume_approval(store, approval_id, approved=False)
+        return _resume_approval(store, approval_id, approved=False, live_session_keys=live_session_keys)
 
     @app.post("/approvals/{approval_id}/mark-failed")
     def mark_failed(approval_id: str, reason: str = Form(...)):
@@ -308,14 +502,31 @@ def _guardrail_samples() -> dict[str, dict[str, object]]:
     }
 
 
-def _resume_approval(store: SQLiteStore, approval_id: str, approved: bool) -> RedirectResponse:
+def _resume_approval(
+    store: SQLiteStore,
+    approval_id: str,
+    approved: bool,
+    live_session_keys: dict[str, str] | None = None,
+) -> RedirectResponse:
     try:
         approval = store.get_approval(approval_id)
         session = store.get_session(approval.session_id)
-        resumed = AgentLoop.for_workspace(session.workspace, MockLLM([]), store).resume_after_approval(
+        provider_settings = _provider_settings_for_session(store, session.id)
+        if provider_settings is not None and provider_settings["mode"] == "live":
+            session_key = (live_session_keys or {}).get(session.id, "")
+            loop = _loop_for_provider(
+                session.workspace,
+                store,
+                _live_provider(provider_settings["base_url"], provider_settings["model"], session_key, None),
+            )
+            continue_after_resolution = True
+        else:
+            loop = AgentLoop.for_workspace(session.workspace, MockLLM([]), store)
+            continue_after_resolution = False
+        resumed = loop.resume_after_approval(
             approval_id,
             approved,
-            continue_after_resolution=False,
+            continue_after_resolution=continue_after_resolution,
         )
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="approval not found") from exc

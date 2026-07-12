@@ -250,6 +250,24 @@ def test_dispatcher_requires_approval_without_executing_shell(tmp_path: Path, mo
     assert "approval" in obs.message
 
 
+@pytest.mark.parametrize("command", ["dir", "type README.md", "del notes.txt", "rd build"])
+def test_dispatcher_denies_cmd_builtins_without_execution(tmp_path: Path, monkeypatch, command: str):
+    dispatcher = ToolDispatcher(tmp_path, test_command=["python", "-c", "print('ok')"])
+    calls = []
+
+    monkeypatch.setattr(
+        "guarded_harness.tools.shell.subprocess.run",
+        lambda *args, **kwargs: calls.append((args, kwargs)),
+    )
+
+    obs = dispatcher.dispatch(Action(ActionType.RUN_SHELL, {"command": command}))
+
+    assert obs.success is False
+    assert obs.feedback_kind == FeedbackKind.POLICY_DENIED
+    assert "cmd built-in" in obs.message
+    assert calls == []
+
+
 def test_dispatcher_denies_external_helper_options_without_execution(tmp_path: Path, monkeypatch):
     dispatcher = ToolDispatcher(tmp_path, test_command=["python", "-c", "print('ok')"])
     calls = []

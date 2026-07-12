@@ -106,6 +106,13 @@ class AgentLoop:
                 self._persist_session(session)
                 return session
 
+            if not raw_action.strip():
+                observation = Observation(False, FeedbackKind.COMMAND_ERROR, message="provider returned empty content")
+                self._record_observation(session, "provider_failure", observation)
+                session.status = SessionStatus.FAILED
+                self._persist_session(session)
+                return session
+
             session.step_count += 1
             self._persist_session(session)
             try:

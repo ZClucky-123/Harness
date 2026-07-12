@@ -38,6 +38,7 @@ _SHELL_WRAPPER_FLAGS = {
     "pwsh": {"-command", "-encodedcommand", "-ec"},
     "cmd": {"/c", "/k"},
 }
+_CMD_BUILTINS_REQUIRING_CMD_EXE = {"del", "dir", "rd", "type"}
 
 
 def contains_shell_control_syntax(command: str) -> bool:
@@ -82,6 +83,20 @@ def parse_shell_argv(command: str) -> list[str]:
     if not tokens:
         raise ValueError("shell command is required")
     return [_strip_matching_quotes(token) for token in tokens]
+
+
+def unsupported_direct_command_reason(argv: list[str]) -> str | None:
+    if not argv:
+        return None
+    executable = argv[0].replace("\\", "/").rsplit("/", 1)[-1].strip("\"'").lower()
+    if executable.endswith(".exe"):
+        executable = executable[:-4]
+    if executable in _CMD_BUILTINS_REQUIRING_CMD_EXE:
+        return (
+            f"cmd built-in command '{executable}' is not supported because shell execution is disabled; "
+            "use a structured file tool or an allowlisted executable"
+        )
+    return None
 
 
 def argv_paths_within_workspace(argv: list[str], workspace_root: Path) -> bool:

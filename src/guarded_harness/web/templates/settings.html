@@ -10,31 +10,35 @@
   <main class="shell">
     <header class="site-header">
       <a class="brand" href="/">Guarded Harness</a>
-      <nav class="nav-links"><a href="/">Dashboard</a><a href="/approvals">Approvals</a></nav>
+      <nav class="nav-links">
+        <a href="/">对话</a>
+        <a class="active" href="/settings">模型设置</a>
+        <a href="/approvals">审批{% if pending_approval_count %}<span class="nav-count">{{ pending_approval_count }}</span>{% endif %}</a>
+      </nav>
     </header>
     <section class="hero">
-      <h1>Provider Settings</h1>
-      <p>key: {% if credential_configured %}configured{% else %}missing{% endif %}</p>
+      <h1>模型设置</h1>
+      <p>{% if credential_configured %}密钥已配置{% else %}密钥未配置{% endif %}</p>
     </section>
-    <form class="composer" action="/settings" method="post">
+    <form class="settings-card" action="/settings" method="post">
       <fieldset>
-        <legend>Mode</legend>
+        <legend>运行模式</legend>
         <div class="mode-grid">
-          <label class="mode-option"><input type="radio" name="mode" value="mock" {% if settings.mode == "mock" %}checked{% endif %}> Mock deterministic run</label>
-          <label class="mode-option"><input type="radio" name="mode" value="live" {% if settings.mode == "live" %}checked{% endif %}> Live OpenAI-compatible API</label>
+          <label class="mode-option"><input type="radio" name="mode" value="mock" {% if settings.mode == "mock" %}checked{% endif %}> 模拟模式</label>
+          <label class="mode-option"><input type="radio" name="mode" value="live" {% if settings.mode == "live" %}checked{% endif %}> 实时 OpenAI-compatible API</label>
         </div>
       </fieldset>
       <fieldset>
-        <legend>Endpoint</legend>
-        <label for="base_url">GUARDED_HARNESS_BASE_URL</label>
+        <legend>Provider</legend>
+        <label for="base_url">Base URL</label>
         <input id="base_url" name="base_url" value="{{ settings.base_url }}">
-        <label for="model">GUARDED_HARNESS_MODEL</label>
+        <label for="model">模型</label>
         <input id="model" name="model" value="{{ settings.model }}">
-        <label for="api_key">API key</label>
-        <input id="api_key" name="api_key" type="password" autocomplete="off" placeholder="Paste key only when updating">
-        <label><input type="checkbox" name="save_api_key"> Save key to OS keyring</label>
+        <label for="api_key">API Key</label>
+        <input id="api_key" name="api_key" type="password" autocomplete="off" placeholder="仅在更新密钥时填写">
+        <label><input type="checkbox" name="save_api_key"> 保存到系统 keyring</label>
       </fieldset>
-      <button type="submit">Save provider</button>
+      <button type="submit">保存设置</button>
     </form>
   </main>
 </body>

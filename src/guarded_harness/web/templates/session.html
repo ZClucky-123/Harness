@@ -10,20 +10,24 @@
   <main class="shell">
     <header class="site-header">
       <a class="brand" href="/">Guarded Harness</a>
-      <nav class="nav-links"><a href="/">Dashboard</a><a href="/settings">Provider Settings</a><a href="/approvals">Approvals</a></nav>
+      <nav class="nav-links">
+        <a href="/">对话</a>
+        <a href="/settings">模型设置</a>
+        <a href="/approvals">审批{% if pending_approval_count %}<span class="nav-count">{{ pending_approval_count }}</span>{% endif %}</a>
+      </nav>
     </header>
     <section class="hero">
-      <h1>Session</h1>
+      <h1>会话轨迹</h1>
       <p>{{ display_task }}</p>
     </section>
     <dl class="meta-grid panel">
-      <dt>Task</dt><dd>{{ display_task }}</dd>
-      <dt>Status</dt><dd><span class="status-badge">[{{ session.status.value }}]</span></dd>
-      <dt>Steps</dt><dd>{{ session.step_count }}</dd>
+      <dt>任务</dt><dd>{{ display_task }}</dd>
+      <dt>状态</dt><dd><span class="status-badge">[{{ status_label }}]</span></dd>
+      <dt>步数</dt><dd>{{ session.step_count }}</dd>
     </dl>
     <section class="terminal-card panel">
       <div class="traffic-lights"><span></span><span></span><span></span></div>
-      <h2>Trace</h2>
+      <h2>轨迹</h2>
       <ol class="trace">
       {% for event in events %}
         <li>

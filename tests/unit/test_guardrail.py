@@ -104,6 +104,14 @@ def test_allow_shell_command_without_path_side_effects(tmp_path: Path):
     assert decision.decision == DecisionType.ALLOW
 
 
+@pytest.mark.parametrize("command", ["dir", "type README.md", "del notes.txt", "rd build"])
+def test_deny_cmd_builtins_that_shell_false_cannot_execute(tmp_path: Path, command: str):
+    decision = Guardrail(tmp_path).evaluate(Action(ActionType.RUN_SHELL, {"command": command}))
+
+    assert decision.decision == DecisionType.DENY
+    assert "cmd built-in" in decision.reason
+
+
 def test_deny_destructive_compound_and_wrapper_commands(tmp_path: Path):
     guardrail = Guardrail(tmp_path)
 

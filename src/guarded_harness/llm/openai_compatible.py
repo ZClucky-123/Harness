@@ -27,20 +27,61 @@ class OpenAICompatibleProvider(LLMProvider):
         self.timeout = timeout
 
     def complete(self, context: dict[str, Any]) -> str:
-        response = httpx.post(
-            f"{self.base_url}/chat/completions",
-            headers={"Authorization": f"Bearer {self.api_key}"},
-            json={
-                "model": self.model,
-                "messages": [
-                    {"role": "system", "content": ACTION_PROTOCOL_PROMPT},
-                    {"role": "user", "content": str(context)},
-                ],
-            },
-            timeout=self.timeout,
-        )
-        response.raise_for_status()
-        return _strip_json_fence(response.json()["choices"][0]["message"]["content"])
+        try:
+            response = httpx.post(
+                f"{self.base_url}/chat/completions",
+                headers={"Authorization": f"Bearer {self.api_key}"},
+                json={
+                    "model": self.model,
+                    "messages": [
+                        {"role": "system", "content": ACTION_PROTOCOL_PROMPT},
+                        {"role": "user", "content": str(context)},
+                    ],
+                },
+                timeout=self.timeout,
+            )
+        except httpx.TimeoutException as exc:
+            raise RuntimeError("provider request timed out") from exc
+        except httpx.RequestError as exc:
+            raise RuntimeError("provider network connection failed") from exc
+        try:
+            response.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            raise RuntimeError(_http_error_message(exc.response.status_code)) from exc
+        try:
+            payload = response.json()
+        except ValueError as exc:
+            raise RuntimeError("provider returned invalid JSON") from exc
+
+        content = _extract_message_content(payload)
+        stripped = _strip_json_fence(content)
+        if not stripped:
+            raise RuntimeError("provider returned empty content")
+        return stripped
+
+
+def _http_error_message(status_code: int) -> str:
+    if status_code == 400:
+        return "provider request was rejected; check model, base URL, and parameters"
+    if status_code == 401:
+        return "provider authentication failed; check the API key"
+    if status_code == 403:
+        return "provider permission denied; check account access for this model"
+    if status_code == 429:
+        return "provider rate limited or quota exhausted; retry later or check quota"
+    if 500 <= status_code <= 599:
+        return f"provider service error ({status_code}); retry later"
+    return f"provider HTTP error ({status_code})"
+
+
+def _extract_message_content(payload: object) -> str:
+    try:
+        content = payload["choices"][0]["message"]["content"]  # type: ignore[index]
+    except (KeyError, IndexError, TypeError) as exc:
+        raise RuntimeError("provider response missing choices[0].message.content") from exc
+    if not isinstance(content, str):
+        raise RuntimeError("provider response content is not a string")
+    return content
 
 
 def _strip_json_fence(content: str) -> str:
