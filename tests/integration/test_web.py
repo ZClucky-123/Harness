@@ -61,10 +61,13 @@ def test_chat_workspace_css_uses_global_scroll_and_compact_composer():
     assert ".composer-fixed" in response.text
     assert ".composer-submit" in response.text
     assert ".composer-status" in response.text
-    assert "left: calc(50% + 136px)" in response.text
-    assert ".session-sidebar { position: sticky" in response.text
+    assert "--sidebar-width: 320px" in response.text
+    assert "--content-width: 760px" in response.text
+    assert ".chat-page { min-height: 100vh; padding: 0 32px 150px var(--sidebar-width); }" in response.text
+    assert ".chat-main { width: min(var(--content-width), 100%); margin: 0 auto; min-width: 0; }" in response.text
+    assert ".composer-fixed { position: fixed; left: calc(var(--sidebar-width) + (100vw - var(--sidebar-width)) / 2); bottom: 16px; z-index: 20; width: min(var(--content-width), calc(100vw - var(--sidebar-width) - 64px));" in response.text
+    assert ".session-sidebar { position: fixed; left: 0; top: 0; width: var(--sidebar-width); height: 100vh; overflow-y: auto" in response.text
     assert "overflow-y: auto" in response.text
-    assert "max-height: calc(100vh - 96px)" in response.text
     assert ".sidebar-item { min-width: 0" in response.text
     assert ".sidebar-item span, .sidebar-item small { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }" in response.text
     assert ".composer-sticky" not in response.text
@@ -489,10 +492,12 @@ def test_approvals_page_shows_failed_operation_summary_and_actions(tmp_path: Pat
     assert "Approval: approved" in response.text
     assert "Execution: failed" in response.text
     assert "Reason: del is a cmd built-in command and cannot be run directly by this executor" in response.text
-    assert "View task" in response.text
-    assert "View trace" in response.text
+    assert "View task" not in response.text
+    assert response.text.count("View trace") == 1
     assert "Technical details" in response.text
-    assert "Copy command" in response.text
+    assert "Copy command" not in response.text
+    assert 'class="approval-text-link"' in response.text
+    assert 'class="button-secondary"' not in response.text
 
 
 def test_guardrail_demo_page_evaluates_sample_actions(tmp_path: Path):

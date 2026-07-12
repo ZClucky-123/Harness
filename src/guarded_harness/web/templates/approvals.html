@@ -60,15 +60,11 @@
                 {% endif %}
 
                 <div class="approval-links">
-                  <a class="button-secondary" href="{{ approval.trace_url }}">View task</a>
-                  <a class="button-secondary" href="{{ approval.trace_url }}">View trace</a>
+                  <a class="approval-text-link" href="{{ approval.trace_url }}">View trace</a>
                   <details>
-                    <summary>Technical details</summary>
+                    <summary class="approval-text-link">Technical details</summary>
                     <pre>{{ approval.action_json }}</pre>
                   </details>
-                  {% if approval.command %}
-                    <button class="button-secondary" type="button" data-copy="{{ approval.command }}">Copy command</button>
-                  {% endif %}
                 </div>
               </article>
             {% endfor %}
