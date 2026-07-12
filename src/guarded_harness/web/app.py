@@ -195,7 +195,7 @@ def create_app(store_path: Path | None = None, workspace_root: Path | None = Non
             session = _loop_for_provider(root, store, provider).run(task)
         else:
             session = _finish_loop(root, store, "mock run completed").run(task)
-        return RedirectResponse(url=f"/sessions/{session.id}", status_code=303)
+        return RedirectResponse(url="/", status_code=303)
 
     @app.get("/sessions/{session_id}")
     def show_session(request: Request, session_id: str):

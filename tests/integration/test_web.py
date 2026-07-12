@@ -111,15 +111,17 @@ def test_provider_settings_save_updates_dashboard_without_persisting_key(tmp_pat
     assert "settings-secret" not in (tmp_path / ".guarded-harness" / "provider.json").read_text()
 
 
-def test_starting_task_redirects_to_session_trace(tmp_path: Path):
-    client = TestClient(create_app(tmp_path / "state.sqlite3"))
+def test_starting_task_returns_to_workspace_with_saved_conversation(tmp_path: Path):
+    client = TestClient(create_app(tmp_path / "state.sqlite3", workspace_root=tmp_path))
 
     response = client.post("/sessions", data={"task": "inspect the repository"}, follow_redirects=True)
 
     assert response.status_code == 200
+    assert "Chat Workspace" in response.text
     assert "inspect the repository" in response.text
-    assert "session_started" in response.text
-    assert "finished" in response.text
+    assert "mock run completed" in response.text
+    assert "View trace" in response.text
+    assert "session_started" not in response.text
 
 
 def test_starting_task_uses_saved_live_settings_without_retyping_key(tmp_path: Path, monkeypatch):
@@ -144,6 +146,7 @@ def test_starting_task_uses_saved_live_settings_without_retyping_key(tmp_path: P
     response = client.post("/sessions", data={"task": "use saved provider"}, follow_redirects=True)
 
     assert response.status_code == 200
+    assert "Chat Workspace" in response.text
     assert "live done" in response.text
     assert captured == {
         "base_url": "https://njusehub.info/v1",
@@ -232,7 +235,7 @@ def test_web_live_mode_uses_submitted_provider_config_without_persisting_key(tmp
     )
 
     assert response.status_code == 200
-    assert "finished" in response.text
+    assert "Chat Workspace" in response.text
     assert "2" in response.text
     assert captured == {
         "base_url": "https://njusehub.info/v1",
