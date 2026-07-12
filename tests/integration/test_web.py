@@ -34,6 +34,17 @@ def test_index_loads_chat_workspace_without_guardrail_nav(tmp_path: Path):
     assert "scrollTop = chat.scrollHeight" in response.text
 
 
+def test_chat_workspace_css_reserves_scroll_and_composer_space():
+    client = TestClient(create_app())
+
+    response = client.get("/static/styles.css")
+
+    assert response.status_code == 200
+    assert "grid-template-rows: auto auto minmax(0, 1fr) auto" in response.text
+    assert "scroll-padding-bottom: 160px" in response.text
+    assert ".composer-sticky { position: sticky" in response.text
+
+
 def test_index_lists_recent_sessions_as_conversation_items(tmp_path: Path):
     store = SQLiteStore(tmp_path / "state.sqlite3", workspace_root=tmp_path)
     first = store.create_session("first task", tmp_path)
