@@ -99,3 +99,12 @@
 - **Subagent output key fragments:** No delegated subagent output. Local branch `feature/guarded-harness-impl` contains split commits and is PR-ready.
 - **Manual intervention:** Attempted `git push -u origin feature/guarded-harness-impl`, but sandbox safety rejected exporting workspace code to `https://github.com/ZClucky-123/Harness.git` until the user explicitly approves that remote push after being informed of the risk.
 - **Lesson:** PR workflow needs an explicit remote-export approval separate from local commit approval.
+
+## 2026-07-13 01:44:24 +08:00 - Task 13 conversation/sidebar polish started
+
+- **Task:** Task 13 - Chat Conversation Order and Sidebar Header Polish.
+- **Superpowers skills:** `brainstorming`, `test-driven-development`; planned follow-up `verification-before-completion`.
+- **Prompt/context configuration:** User supplied four corrections after visual testing: right-side chat order should be old-to-new with newest at the bottom, composer should be white and grow upward with the send button anchored lower-right, the fixed sidebar should expose its own scroll area, and `Guarded Harness` should move above the left sidebar list on session pages.
+- **Subagent output key fragments:** No delegated subagent output. Work is performed by `Codex(main)`.
+- **Manual intervention:** User approved the design and clarified the expected behavior with screenshots.
+- **Lesson so far:** The sidebar ordering and conversation ordering are separate UX models and need separate tests.

@@ -1020,3 +1020,33 @@ git commit -m "docs: add distribution ci and process documentation"
 - [ ] **Step 6: Push branch and open PR**
   - Status: blocked until user explicitly approves exporting branch `feature/guarded-harness-impl` to remote `https://github.com/ZClucky-123/Harness.git`
   - Commit: pending
+
+---
+
+## Task 13: Chat Conversation Order and Sidebar Header Polish
+
+**Started:** 2026-07-13 01:44:24 +08:00
+
+**Subagent:** Codex(main)
+
+**Manual intervention:** User approved four screenshot-driven corrections: right-side conversation should show newest messages at the bottom, composer should be white and grow upward with send button at the lower-right, left sidebar needs an actual independent scroll area, and `Guarded Harness` should move into the sidebar header on session pages.
+
+**Files:**
+- Modify: `src/guarded_harness/web/app.py`
+- Modify: `src/guarded_harness/web/templates/index.html`
+- Modify: `src/guarded_harness/web/templates/session.html`
+- Modify: `src/guarded_harness/web/static/styles.css`
+- Modify: `tests/integration/test_web.py`
+- Modify: `PLAN.md`
+- Modify: `AGENT_LOG.md`
+
+- [x] **Step 1: Record task start and workflow requirements**
+  - Commit: pending
+- [ ] **Step 2: Add failing WebUI tests for conversation order, composer behavior, sidebar scroll, and sidebar brand**
+  - Commit: pending
+- [ ] **Step 3: Implement view-model, templates, and CSS**
+  - Commit: pending
+- [ ] **Step 4: Run focused and full verification**
+  - Commit: pending
+- [ ] **Step 5: Record final commit hashes and lessons**
+  - Commit: pending
