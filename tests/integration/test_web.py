@@ -9,7 +9,7 @@ from guarded_harness.memory.store import SQLiteStore
 from guarded_harness.web.app import create_app
 
 
-def test_index_loads(tmp_path: Path):
+def test_index_loads_chat_workspace_without_guardrail_nav(tmp_path: Path):
     client = TestClient(create_app(tmp_path / "state.sqlite3", workspace_root=tmp_path))
 
     response = client.get("/")
@@ -17,6 +17,9 @@ def test_index_loads(tmp_path: Path):
     assert response.status_code == 200
     assert "Chat Workspace" in response.text
     assert "Provider Settings" in response.text
+    assert "Approvals" in response.text
+    assert "Guardrail Demo" not in response.text
+    assert "Change configuration" not in response.text
     assert "Recent Sessions" in response.text
     assert "/guardrail" not in response.text
     assert "mode:" in response.text
