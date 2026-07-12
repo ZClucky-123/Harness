@@ -58,3 +58,7 @@ HITL、CLI 与 WebUI。交付前执行受当前环境支持的 pytest 子集、`
 ## 后期 UI 修复：中文展示与 OpenCode 风格
 
 WebUI 原先直接使用 Jinja `tojson` 展示 trace payload，导致中文在页面源码中显示为 `\uXXXX`。修复方式是在模板层使用 `ensure_ascii=False` 的 JSON filter，让用户看到可读中文；这不改变数据库写入和审计模型。页面视觉同时按 `DESIGN-opencode.ai.md` 收敛到 monospaced terminal 风格，包括 cream 背景、深色终端面板、ASCII bracket 标签、hairline 边框和 4px 控件。该修复服务于演示与可用性，不影响核心 harness 判断逻辑。
+
+## 后期 UI 重构：本地 Agent Console
+
+进一步将 WebUI 拆为 Dashboard、Provider Settings、Session Trace、Approvals Queue 和 Guardrail Demo。Provider Settings 只持久化非敏感配置，API key 仍由 keyring 管理；Dashboard 只负责启动任务，避免每次对话重复输入 API 配置。Approvals Queue 强化 HITL 状态机展示，Guardrail Demo 则给评审者提供一个无需真实 LLM 的确定性机制演示入口。

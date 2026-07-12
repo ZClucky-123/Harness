@@ -11,7 +11,7 @@
     <header class="topbar">
       <pre class="wordmark">GUARDED
 HARNESS</pre>
-      <nav><a href="/">New task</a> <a href="/approvals">Approvals</a></nav>
+      <nav><a href="/">Dashboard</a> <a href="/settings">Provider Settings</a> <a href="/approvals">Approvals</a> <a href="/guardrail">Guardrail Demo</a></nav>
     </header>
     <section class="hero-terminal compact">
       <p class="terminal-muted">[session]</p>
@@ -27,7 +27,7 @@ HARNESS</pre>
     <ol class="trace">
     {% for event in events %}
       <li>
-        <div class="event-title">[event] {{ event.event_type }}</div>
+        <div class="event-title">[{{ loop.index }}] {{ event.event_type }}</div>
         <pre>{{ event.payload | pretty_json }}</pre>
       </li>
     {% endfor %}

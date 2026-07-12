@@ -11,29 +11,29 @@
     <header class="topbar">
       <pre class="wordmark">GUARDED
 HARNESS</pre>
-      <nav><a href="/approvals">Approvals</a></nav>
+      <nav><a href="/settings">Provider Settings</a> <a href="/approvals">Approvals</a> <a href="/guardrail">Guardrail Demo</a></nav>
     </header>
     <section class="hero-terminal" aria-label="Harness terminal preview">
       <p class="terminal-muted">[agent = llm + harness]</p>
-      <h1>Guarded Harness</h1>
+      <h1>Dashboard</h1>
       <p>| governance guardrails | hitl state machine | provider adapters |</p>
-      <div class="prompt-row">mode: <strong>mock/live</strong> · provider: <strong>OpenAI-compatible</strong></div>
+      <div class="prompt-row">mode: <strong>{{ settings.mode }}</strong> · model: <strong>{{ settings.model }}</strong> · key: <strong>{% if credential_configured %}configured{% else %}missing{% endif %}</strong></div>
+    </section>
+    <section class="dashboard-grid">
+      <div class="dashboard-panel">
+        <h2>[+] Provider</h2>
+        <p>mode: {{ settings.mode }}</p>
+        <p>base: {{ settings.base_url }}</p>
+        <p>model: {{ settings.model }}</p>
+        <p>key: {% if credential_configured %}configured{% else %}missing{% endif %}</p>
+        <a class="button-link" href="/settings">Change configuration</a>
+      </div>
+      <div class="dashboard-panel">
+        <h2>[+] Recent Sessions</h2>
+        <p class="terminal-muted-light">No recent sessions listed yet.</p>
+      </div>
     </section>
     <form class="terminal-form" action="/sessions" method="post">
-      <fieldset>
-        <legend>[+] Provider</legend>
-        <div class="mode-grid">
-          <label><input type="radio" name="mode" value="mock" checked> Mock deterministic run</label>
-          <label><input type="radio" name="mode" value="live"> Live OpenAI-compatible API</label>
-        </div>
-        <label for="base_url">GUARDED_HARNESS_BASE_URL</label>
-        <input id="base_url" name="base_url" value="{{ base_url }}">
-        <label for="model">GUARDED_HARNESS_MODEL</label>
-        <input id="model" name="model" value="{{ model }}">
-        <label for="api_key">API key {% if credential_configured %}(stored key available){% endif %}</label>
-        <input id="api_key" name="api_key" type="password" autocomplete="off" placeholder="Paste key for live mode">
-        <label><input type="checkbox" name="save_api_key"> Save key to OS keyring</label>
-      </fieldset>
       <fieldset>
       <legend>[+] Task</legend>
       <label for="task">Task</label>

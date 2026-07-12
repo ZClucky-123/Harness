@@ -11,37 +11,44 @@
     <header class="topbar">
       <pre class="wordmark">GUARDED
 HARNESS</pre>
-      <nav><a href="/">New task</a></nav>
+      <nav><a href="/">Dashboard</a> <a href="/settings">Provider Settings</a> <a href="/guardrail">Guardrail Demo</a></nav>
     </header>
     <section class="hero-terminal compact">
       <p class="terminal-muted">[human in the loop]</p>
       <h1>Approvals</h1>
       <p>| pending actions pause here before execution |</p>
     </section>
-    {% if approvals %}
-    <ul class="approvals">
-    {% for approval in approvals %}
-      <li>
-        <p><span class="status-badge">[{{ approval.status }}]</span> {{ approval.redacted_reason }}</p>
-        <pre>{{ approval.redacted_action_json }}</pre>
-        {% if approval.status == "pending" %}
-        <form action="/approvals/{{ approval.id }}/approve" method="post"><button type="submit">Approve</button></form>
-        <form action="/approvals/{{ approval.id }}/deny" method="post"><button class="deny" type="submit">Deny</button></form>
-        {% elif approval.status == "executing" %}
-        <p>Execution did not finish. Mark it failed after confirming the worker is no longer running.</p>
-        <form action="/approvals/{{ approval.id }}/mark-failed" method="post">
-          <label>Reason <input name="reason" required></label>
-          <button class="deny" type="submit">Mark failed</button>
-        </form>
+    <section class="queue-grid">
+    {% for status, items in approval_groups.items() %}
+      <div class="queue-column">
+        <h2>[{{ status }}]</h2>
+        {% if items %}
+        <ul class="approvals">
+        {% for approval in items %}
+          <li>
+            <p><span class="status-badge">[{{ approval.status }}]</span> {{ approval.redacted_reason }}</p>
+            <pre>{{ approval.redacted_action_json }}</pre>
+            {% if approval.status == "pending" %}
+            <form action="/approvals/{{ approval.id }}/approve" method="post"><button type="submit">Approve</button></form>
+            <form action="/approvals/{{ approval.id }}/deny" method="post"><button class="deny" type="submit">Deny</button></form>
+            {% elif approval.status == "executing" %}
+            <p>Execution did not finish. Mark it failed after confirming the worker is no longer running.</p>
+            <form action="/approvals/{{ approval.id }}/mark-failed" method="post">
+              <label>Reason <input name="reason" required></label>
+              <button class="deny" type="submit">Mark failed</button>
+            </form>
+            {% else %}
+            <p>Execution is marked failed and will not be replayed automatically.</p>
+            {% endif %}
+          </li>
+        {% endfor %}
+        </ul>
         {% else %}
-        <p>Execution is marked failed and will not be replayed automatically.</p>
+        <p class="terminal-muted-light">empty</p>
         {% endif %}
-      </li>
+      </div>
     {% endfor %}
-    </ul>
-    {% else %}
-    <p>No pending approvals.</p>
-    {% endif %}
+    </section>
   </main>
 </body>
 </html>

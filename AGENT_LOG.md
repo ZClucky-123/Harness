@@ -63,3 +63,10 @@
 - 使用技能：`brainstorming` 明确修复范围；`test-driven-development` 先写中文展示失败测试，再实现 `pretty_json` filter 和模板改造。
 - 人工决策：只修展示层，不改 SQLite 存储和 audit 数据模型；UI 参照 `DESIGN-opencode.ai.md` 的 cream canvas、monospace、terminal panel、ASCII bracket 语言。
 - 作业边界说明：这是 WebUI 可用性与 Open Design 风格对齐，不改变 harness 核心机制。
+
+## 2026-07-12 Web Console 重构
+
+- 触发原因：用户反馈每次任务都填写 provider/API key 不符合实际使用方式，并希望页面更接近 OpenCode 控制台。
+- 使用技能：`brainstorming` 确认页面信息架构；`test-driven-development` 先写 Dashboard、Provider Settings、Approvals queue、Guardrail Demo 的失败测试。
+- 人工决策：将非 secret 的 mode/base URL/model 保存到 `.guarded-harness/provider.json`；API key 只在用户勾选时写入 OS keyring，不放入配置文件。
+- 作业边界说明：Guardrail Demo 直接调用 deterministic `Guardrail.evaluate()`，用于展示“机制是代码而不是提示词”。

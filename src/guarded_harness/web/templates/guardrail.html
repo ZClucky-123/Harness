@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ title }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', path='styles.css') }}">
+</head>
+<body>
+  <main>
+    <header class="topbar">
+      <pre class="wordmark">GUARDED
+HARNESS</pre>
+      <nav><a href="/">Dashboard</a> <a href="/settings">Provider Settings</a> <a href="/approvals">Approvals</a></nav>
+    </header>
+    <section class="hero-terminal compact">
+      <p class="terminal-muted">[policy]</p>
+      <h1>Guardrail Demo</h1>
+      <p>| deterministic action classification without relying on prompt obedience |</p>
+    </section>
+    <section class="queue-grid">
+      {% for key, sample in samples.items() %}
+      <form class="queue-column" action="/guardrail" method="post">
+        <input type="hidden" name="sample" value="{{ key }}">
+        <p>{{ sample.label }}</p>
+        <button type="submit">Evaluate</button>
+      </form>
+      {% endfor %}
+    </section>
+    {% if result %}
+    <section class="result-panel">
+      <h2>[+] Result</h2>
+      <p>decision: {{ result.decision.decision.value }}</p>
+      <p>risk: {{ result.decision.risk_level }}</p>
+      <p>reason: {{ result.decision.reason }}</p>
+    </section>
+    {% endif %}
+  </main>
+</body>
+</html>

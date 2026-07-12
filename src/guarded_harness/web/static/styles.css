@@ -5,11 +5,16 @@ main { max-width: 960px; margin: 2rem auto; padding: 0 1rem; }
 .wordmark { margin: 0.6rem 0; font-weight: 700; line-height: 1; }
 h1 { margin: 0.6rem 0; font-size: 38px; line-height: 1.5; }
 h2 { margin-top: 32px; font-size: 16px; }
-a { color: #201d1d; }
+a { color: #201d1d; text-underline-offset: 3px; }
 .hero-terminal { margin: 24px 0; padding: 32px; background: #201d1d; color: #fdfcfc; }
 .hero-terminal.compact { padding: 24px; }
 .terminal-muted { color: #9a9898; }
+.terminal-muted-light { color: #646262; }
 .prompt-row { margin-top: 20px; padding: 8px 12px; border-radius: 4px; background: #302c2c; }
+.dashboard-grid, .queue-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin: 24px 0; }
+.queue-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.dashboard-panel, .queue-column, .result-panel { padding: 16px; border: 1px solid rgba(15,0,0,0.12); background: #fdfcfc; }
+.button-link { display: inline-block; margin-top: 8px; padding: 4px 12px; border: 1px solid #201d1d; border-radius: 4px; text-decoration: none; }
 form { margin: 1rem 0; }
 fieldset { margin: 0 0 1rem; padding: 1rem; border: 1px solid rgba(15,0,0,0.12); }
 legend { font-weight: 700; }
@@ -29,5 +34,5 @@ dd { margin: 0; }
 pre { overflow-x: auto; white-space: pre-wrap; padding: 12px; border-radius: 4px; background: #f1eeee; }
 @media (max-width: 640px) {
   h1 { font-size: 28px; }
-  .mode-grid, .meta-grid { grid-template-columns: 1fr; }
+  .mode-grid, .meta-grid, .dashboard-grid, .queue-grid { grid-template-columns: 1fr; }
 }

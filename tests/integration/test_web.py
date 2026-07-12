@@ -15,10 +15,51 @@ def test_index_loads():
     response = client.get("/")
 
     assert response.status_code == 200
-    assert "Guarded Harness" in response.text
-    assert "GUARDED_HARNESS_BASE_URL" in response.text
+    assert "Dashboard" in response.text
+    assert "Provider Settings" in response.text
+    assert "Guardrail Demo" in response.text
+    assert "mode:" in response.text
+    assert "deepseek-v4-flash" in response.text
+    assert 'name="api_key"' not in response.text
+
+
+def test_provider_settings_page_loads_defaults(tmp_path: Path, monkeypatch):
+    monkeypatch.setattr("guarded_harness.web.app._credential_store", lambda: _FakeCredentials(None))
+    client = TestClient(create_app(tmp_path / "state.sqlite3", workspace_root=tmp_path))
+
+    response = client.get("/settings")
+
+    assert response.status_code == 200
+    assert "Provider Settings" in response.text
     assert "https://njusehub.info/v1" in response.text
     assert "deepseek-v4-flash" in response.text
+    assert "key: missing" in response.text
+
+
+def test_provider_settings_save_updates_dashboard_without_persisting_key(tmp_path: Path, monkeypatch):
+    credentials = _FakeCredentials(None)
+    monkeypatch.setattr("guarded_harness.web.app._credential_store", lambda: credentials)
+    client = TestClient(create_app(tmp_path / "state.sqlite3", workspace_root=tmp_path))
+
+    response = client.post(
+        "/settings",
+        data={
+            "mode": "live",
+            "base_url": "https://njusehub.info/v1",
+            "model": "qwen-turbo",
+            "api_key": "settings-secret",
+            "save_api_key": "on",
+        },
+        follow_redirects=True,
+    )
+
+    assert response.status_code == 200
+    assert "mode: live" in response.text
+    assert "model: qwen-turbo" in response.text
+    assert "key: configured" in response.text
+    assert credentials.key == "settings-secret"
+    assert "settings-secret" not in response.text
+    assert "settings-secret" not in (tmp_path / ".guarded-harness" / "provider.json").read_text()
 
 
 def test_starting_task_redirects_to_session_trace(tmp_path: Path):
@@ -30,6 +71,37 @@ def test_starting_task_redirects_to_session_trace(tmp_path: Path):
     assert "inspect the repository" in response.text
     assert "session_started" in response.text
     assert "finished" in response.text
+
+
+def test_starting_task_uses_saved_live_settings_without_retyping_key(tmp_path: Path, monkeypatch):
+    credentials = _FakeCredentials("stored-live-secret")
+    captured = {}
+
+    class FakeProvider:
+        def __init__(self, base_url: str, model: str, api_key: str, timeout: float):
+            captured.update({"base_url": base_url, "model": model, "api_key": api_key, "timeout": timeout})
+
+        def complete(self, context):
+            return '{"type":"finish","message":"live done"}'
+
+    monkeypatch.setattr("guarded_harness.web.app._credential_store", lambda: credentials)
+    monkeypatch.setattr("guarded_harness.web.app.OpenAICompatibleProvider", FakeProvider)
+    client = TestClient(create_app(tmp_path / "state.sqlite3", workspace_root=tmp_path))
+    client.post(
+        "/settings",
+        data={"mode": "live", "base_url": "https://njusehub.info/v1", "model": "deepseek-v4-flash"},
+    )
+
+    response = client.post("/sessions", data={"task": "use saved provider"}, follow_redirects=True)
+
+    assert response.status_code == 200
+    assert "live done" in response.text
+    assert captured == {
+        "base_url": "https://njusehub.info/v1",
+        "model": "deepseek-v4-flash",
+        "api_key": "stored-live-secret",
+        "timeout": 30.0,
+    }
 
 
 def test_session_page_preserves_chinese_text_in_task_and_trace(tmp_path: Path):
@@ -153,6 +225,23 @@ def test_approvals_page_loads():
 
     assert response.status_code == 200
     assert "Approvals" in response.text
+    assert "[pending]" in response.text
+    assert "[executing]" in response.text
+    assert "[failed]" in response.text
+
+
+def test_guardrail_demo_page_evaluates_sample_actions(tmp_path: Path):
+    client = TestClient(create_app(tmp_path / "state.sqlite3", workspace_root=tmp_path))
+
+    page = client.get("/guardrail")
+    response = client.post("/guardrail", data={"sample": "rm_root"})
+
+    assert page.status_code == 200
+    assert "Guardrail Demo" in page.text
+    assert "Try rm -rf /" in page.text
+    assert response.status_code == 200
+    assert "decision: deny" in response.text
+    assert "destructive" in response.text
 
 
 def test_denying_approval_resumes_session(tmp_path: Path):
@@ -269,6 +358,9 @@ class _FakeCredentials:
 
     def set_key(self, key: str) -> None:
         self.key = key
+
+    def status(self) -> bool:
+        return self.key is not None
 
 
 class _FinishingProvider:
