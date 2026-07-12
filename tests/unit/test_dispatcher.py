@@ -20,6 +20,48 @@ def test_write_and_read_file(tmp_path: Path):
     assert read_obs.stdout == "hi"
 
 
+def test_write_file_reports_success_path_and_utf8_size(tmp_path: Path):
+    dispatcher = ToolDispatcher(tmp_path, test_command=["python", "-c", "print('ok')"])
+
+    obs = dispatcher.dispatch(Action(ActionType.WRITE_FILE, {"path": "hello.txt", "content": "中文"}))
+
+    assert obs.success is True
+    assert obs.feedback_kind == FeedbackKind.TOOL_SUCCESS
+    assert "wrote hello.txt" in obs.message
+    assert "2 characters" in obs.message
+    assert "6 UTF-8 bytes" in obs.message
+    assert obs.metadata == {"path": "hello.txt", "characters": 2, "utf8_bytes": 6}
+
+
+def test_read_file_reports_success_without_repeating_content_in_message(tmp_path: Path):
+    (tmp_path / "hello.txt").write_text("中文", encoding="utf-8")
+    dispatcher = ToolDispatcher(tmp_path, test_command=["python", "-c", "print('ok')"])
+
+    obs = dispatcher.dispatch(Action(ActionType.READ_FILE, {"path": "hello.txt"}))
+
+    assert obs.success is True
+    assert obs.feedback_kind == FeedbackKind.TOOL_SUCCESS
+    assert obs.stdout == "中文"
+    assert "read hello.txt" in obs.message
+    assert "2 characters" in obs.message
+    assert "6 UTF-8 bytes" in obs.message
+    assert "中文" not in obs.message
+    assert obs.metadata == {"path": "hello.txt", "characters": 2, "utf8_bytes": 6}
+
+
+def test_read_file_reports_empty_file(tmp_path: Path):
+    (tmp_path / "empty.txt").write_text("", encoding="utf-8")
+    dispatcher = ToolDispatcher(tmp_path, test_command=["python", "-c", "print('ok')"])
+
+    obs = dispatcher.dispatch(Action(ActionType.READ_FILE, {"path": "empty.txt"}))
+
+    assert obs.success is True
+    assert obs.feedback_kind == FeedbackKind.TOOL_SUCCESS
+    assert obs.stdout == ""
+    assert obs.message == "read empty.txt: file is empty (0 characters, 0 UTF-8 bytes)"
+    assert obs.metadata == {"path": "empty.txt", "characters": 0, "utf8_bytes": 0}
+
+
 def test_run_shell_success(tmp_path: Path):
     dispatcher = ToolDispatcher(tmp_path, test_command=["python", "-c", "print('ok')"])
 
@@ -158,6 +200,18 @@ def test_run_tests_uses_configured_command(tmp_path: Path):
 
     assert obs.success is True
     assert obs.stdout.strip() == "tests ok"
+    assert obs.message == "test command passed with exit code 0"
+
+
+def test_run_tests_reports_failure_exit_code(tmp_path: Path):
+    dispatcher = ToolDispatcher(tmp_path, test_command=["python", "-c", "import sys; print('bad'); sys.exit(3)"])
+
+    obs = dispatcher.dispatch(Action(ActionType.RUN_TESTS))
+
+    assert obs.success is False
+    assert obs.feedback_kind == FeedbackKind.TEST_FAILURE
+    assert obs.stdout.strip() == "bad"
+    assert obs.message == "test command failed with exit code 3"
 
 
 def test_file_tool_errors_are_observations(tmp_path: Path):

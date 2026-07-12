@@ -33,6 +33,11 @@ def run_tests(workspace_root: Path, command: object) -> Observation:
     return Observation(
         result.returncode == 0,
         FeedbackKind.TOOL_SUCCESS if result.returncode == 0 else FeedbackKind.TEST_FAILURE,
+        message=(
+            f"test command passed with exit code {result.returncode}"
+            if result.returncode == 0
+            else f"test command failed with exit code {result.returncode}"
+        ),
         stdout=result.stdout,
         stderr=result.stderr,
     )
