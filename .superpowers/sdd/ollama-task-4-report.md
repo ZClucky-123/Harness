@@ -39,3 +39,10 @@ Result: 20 passed, 1 existing TestClient deprecation warning.
 ## Commit
 
 Implementation: `0316f18 feat: apply ollama web ui styling`.
+
+## Review Fix: Guardrail Shell Width
+
+- Changed the direct `/guardrail` demo from `class="shell wide"` to `class="shell"`; the wide shell remains reserved for approvals.
+- Added an integration assertion covering the direct guardrail page shell class.
+- Verification: `.venv\\Scripts\\python.exe -m pytest tests/integration/test_web.py::test_primary_navigation_omits_guardrail_link_but_direct_page_loads -q` passed (1 passed).
+- Verification: `.venv\\Scripts\\python.exe -m pytest tests/integration/test_web.py -q` passed (20 passed, 1 existing TestClient deprecation warning).

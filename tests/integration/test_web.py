@@ -89,6 +89,7 @@ def test_primary_navigation_omits_guardrail_link_but_direct_page_loads(tmp_path:
     guardrail = client.get("/guardrail")
     assert guardrail.status_code == 200
     assert "Guardrail Demo" in guardrail.text
+    assert 'class="shell"' in guardrail.text
 
 
 def test_provider_settings_save_updates_dashboard_without_persisting_key(tmp_path: Path, monkeypatch):
