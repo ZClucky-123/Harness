@@ -7,39 +7,62 @@
   <link rel="stylesheet" href="{{ url_for('static', path='styles.css') }}">
 </head>
 <body>
-  <main class="shell">
+  <main class="chat-page">
     <header class="site-header">
-      <a class="brand" href="/">Guarded Harness</a>
       <nav class="nav-links">
         <a href="/">Chat</a>
         <a class="active" href="/settings">Provider Settings</a>
         <a href="/approvals">Approvals{% if pending_approval_count %}<span class="nav-count">{{ pending_approval_count }}</span>{% endif %}</a>
       </nav>
     </header>
-    <section class="hero">
-      <h1>Provider Settings</h1>
-      <p>{% if credential_configured %}key configured{% else %}key missing{% endif %}</p>
-    </section>
-    <form class="settings-card" action="/settings" method="post">
-      <fieldset>
-        <legend>Mode</legend>
-        <div class="mode-grid">
-          <label class="mode-option"><input type="radio" name="mode" value="mock" {% if settings.mode == "mock" %}checked{% endif %}> Mock deterministic run</label>
-          <label class="mode-option"><input type="radio" name="mode" value="live" {% if settings.mode == "live" %}checked{% endif %}> Live OpenAI-compatible API</label>
+    <div class="app-layout">
+      <aside class="session-sidebar">
+        <a class="sidebar-brand" href="/">Guarded Harness</a>
+        <div class="sidebar-scroll">
+          {% for group in sidebar_groups %}
+            <section class="sidebar-group">
+              <h2>{{ group.label }}</h2>
+              <nav class="sidebar-list">
+                {% for item in group.sessions %}
+                  <a class="sidebar-item" href="{{ item.trace_url }}">
+                    <span>{{ item.task }}</span>
+                    <small>{{ item.status_label }} · {{ item.step_label }}</small>
+                  </a>
+                {% endfor %}
+              </nav>
+            </section>
+          {% else %}
+            <p class="empty-state">No sessions yet.</p>
+          {% endfor %}
         </div>
-      </fieldset>
-      <fieldset>
-        <legend>Provider</legend>
-        <label for="base_url">Base URL</label>
-        <input id="base_url" name="base_url" value="{{ settings.base_url }}">
-        <label for="model">Model</label>
-        <input id="model" name="model" value="{{ settings.model }}">
-        <label for="api_key">API Key</label>
-        <input id="api_key" name="api_key" type="password" autocomplete="off" placeholder="Paste key only when updating">
-        <label><input type="checkbox" name="save_api_key"> Save key to OS keyring</label>
-      </fieldset>
-      <button type="submit">Save provider</button>
-    </form>
+      </aside>
+      <section class="chat-main">
+        <section class="hero">
+          <h1>Provider Settings</h1>
+          <p>{% if credential_configured %}key configured{% else %}key missing{% endif %}</p>
+        </section>
+        <form class="settings-card" action="/settings" method="post">
+          <fieldset>
+            <legend>Mode</legend>
+            <div class="mode-grid">
+              <label class="mode-option"><input type="radio" name="mode" value="mock" {% if settings.mode == "mock" %}checked{% endif %}> Mock deterministic run</label>
+              <label class="mode-option"><input type="radio" name="mode" value="live" {% if settings.mode == "live" %}checked{% endif %}> Live OpenAI-compatible API</label>
+            </div>
+          </fieldset>
+          <fieldset>
+            <legend>Provider</legend>
+            <label for="base_url">Base URL</label>
+            <input id="base_url" name="base_url" value="{{ settings.base_url }}">
+            <label for="model">Model</label>
+            <input id="model" name="model" value="{{ settings.model }}">
+            <label for="api_key">API Key</label>
+            <input id="api_key" name="api_key" type="password" autocomplete="off" placeholder="Paste key only when updating">
+            <label><input type="checkbox" name="save_api_key"> Save key to OS keyring</label>
+          </fieldset>
+          <button type="submit">Save provider</button>
+        </form>
+      </section>
+    </div>
   </main>
 </body>
 </html>

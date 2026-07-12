@@ -45,7 +45,6 @@
         </section>
 
         <section class="chat-panel">
-          <h2>Recent Sessions</h2>
           <div class="conversation-list">
             {% for item in conversation_items %}
               <article class="conversation-item">
@@ -84,9 +83,11 @@
       <fieldset>
         <div class="composer-row">
           <textarea id="task" name="task" rows="1" placeholder="Message Guarded Harness..." aria-label="Task" required></textarea>
+        </div>
+        <div class="composer-status">
+          <span>mode: {{ provider_status }}</span>
           <button class="composer-submit" type="submit" aria-label="Start task">↑</button>
         </div>
-        <div class="composer-status">mode: {{ provider_status }}</div>
       </fieldset>
     </form>
   </main>
@@ -95,6 +96,7 @@
     taskInput?.addEventListener("input", () => {
       taskInput.style.height = "auto";
       taskInput.style.height = `${Math.min(taskInput.scrollHeight, 180)}px`;
+      taskInput.style.overflowY = taskInput.scrollHeight > 180 ? "auto" : "hidden";
     });
     taskInput?.addEventListener("keydown", (event) => {
       if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {

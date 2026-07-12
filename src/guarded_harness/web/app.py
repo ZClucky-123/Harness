@@ -157,7 +157,7 @@ def _sidebar_groups(items: list[dict[str, object]], current_session_id: str | No
     return [{"label": "Today", "sessions": grouped_items}] if grouped_items else []
 
 
-def _conversation_items(store: SQLiteStore, limit: int = 12) -> list[dict[str, object]]:
+def _conversation_items(store: SQLiteStore, limit: int = 200) -> list[dict[str, object]]:
     return [_conversation_item(store, session) for session in store.list_sessions(limit)]
 
 
@@ -435,6 +435,7 @@ def create_app(store_path: Path | None = None, workspace_root: Path | None = Non
 
     @app.get("/settings")
     def settings(request: Request):
+        conversation_items = _conversation_items(store)
         return _TEMPLATES.TemplateResponse(
             request,
             "settings.html",
@@ -443,6 +444,7 @@ def create_app(store_path: Path | None = None, workspace_root: Path | None = Non
                 "settings": _load_provider_settings(root),
                 "credential_configured": _credential_store().status(),
                 "pending_approval_count": _pending_approval_count(store),
+                "sidebar_groups": _sidebar_groups(conversation_items),
             },
         )
 
@@ -509,6 +511,7 @@ def create_app(store_path: Path | None = None, workspace_root: Path | None = Non
 
     @app.get("/approvals")
     def approvals(request: Request):
+        conversation_items = _conversation_items(store)
         approvals = [_approval_view(store, approval) for approval in store.list_approvals()]
         grouped = {
             "pending": [approval for approval in approvals if approval["status"] == "pending"],
@@ -530,19 +533,28 @@ def create_app(store_path: Path | None = None, workspace_root: Path | None = Non
                 "approval_groups": grouped,
                 "approval_counts": counts,
                 "pending_approval_count": _pending_approval_count(store),
+                "sidebar_groups": _sidebar_groups(conversation_items),
             },
         )
 
     @app.get("/guardrail")
     def guardrail_demo(request: Request):
+        conversation_items = _conversation_items(store)
         return _TEMPLATES.TemplateResponse(
             request,
             "guardrail.html",
-            {"title": "Guardrail Demo", "samples": _guardrail_samples(), "result": None},
+            {
+                "title": "Guardrail Demo",
+                "samples": _guardrail_samples(),
+                "result": None,
+                "pending_approval_count": _pending_approval_count(store),
+                "sidebar_groups": _sidebar_groups(conversation_items),
+            },
         )
 
     @app.post("/guardrail")
     def evaluate_guardrail(request: Request, sample: str = Form(...)):
+        conversation_items = _conversation_items(store)
         samples = _guardrail_samples()
         action = samples.get(sample, samples["rm_root"])["action"]
         decision = Guardrail(root).evaluate(action)
@@ -553,6 +565,8 @@ def create_app(store_path: Path | None = None, workspace_root: Path | None = Non
                 "title": "Guardrail Demo",
                 "samples": samples,
                 "result": {"sample": sample, "decision": decision},
+                "pending_approval_count": _pending_approval_count(store),
+                "sidebar_groups": _sidebar_groups(conversation_items),
             },
         )
 

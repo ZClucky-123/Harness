@@ -21,7 +21,7 @@ def test_index_loads_chat_workspace_without_guardrail_nav(tmp_path: Path):
     assert "Approvals" in response.text
     assert "Guardrail Demo" not in response.text
     assert "Change configuration" not in response.text
-    assert "Recent Sessions" in response.text
+    assert "Recent Sessions" not in response.text
     assert "New session" not in response.text
     assert 'class="app-layout"' in response.text
     assert 'class="session-sidebar"' in response.text
@@ -59,27 +59,41 @@ def test_chat_workspace_css_uses_global_scroll_and_compact_composer():
 
     assert response.status_code == 200
     assert ".chat-page" in response.text
-    assert ".site-header { position: sticky" in response.text
+    assert ".chat-page .site-header { position: fixed; left: var(--sidebar-width);" in response.text
     assert ".chat-panel { border: 0" in response.text
     assert ".composer-fixed" in response.text
     assert ".composer-submit" in response.text
     assert ".composer-status" in response.text
     assert "--sidebar-width: 320px" in response.text
-    assert "--content-width: 760px" in response.text
-    assert ".chat-page { min-height: 100vh; padding: 0 32px 150px var(--sidebar-width); }" in response.text
+    assert "--content-width: 860px" in response.text
+    assert ".chat-page { min-height: 100vh; padding: 56px 32px 150px var(--sidebar-width); }" in response.text
     assert ".chat-main { width: min(var(--content-width), 100%); margin: 0 auto; min-width: 0; }" in response.text
-    assert ".composer-fixed { position: fixed; left: calc(var(--sidebar-width) + (100vw - var(--sidebar-width)) / 2); bottom: 16px; z-index: 20; width: min(var(--content-width), calc(100vw - var(--sidebar-width) - 64px));" in response.text
+    assert ".composer-fixed { position: fixed; left: calc(var(--sidebar-width) + (100vw - var(--sidebar-width) - 32px) / 2); bottom: 16px; z-index: 20; width: min(var(--content-width), calc(100vw - var(--sidebar-width) - 32px));" in response.text
     assert ".session-sidebar { position: fixed; left: 0; top: 0; width: var(--sidebar-width); height: 100vh; box-sizing: border-box; border-right: 1px solid #e5e5e5; background: #fff; }" in response.text
     assert ".sidebar-brand" in response.text
     assert ".sidebar-scroll { height: calc(100vh - 72px); overflow-y: auto; padding: 16px 24px 24px; }" in response.text
     assert ".sidebar-item { min-width: 0" in response.text
     assert ".sidebar-item span, .sidebar-item small { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }" in response.text
     assert ".composer, .settings-card { margin: 24px 0 64px; padding: 12px; border: 1px solid #e5e5e5; border-radius: 24px; background: #fff; }" in response.text
-    assert ".composer-row { display: grid; grid-template-columns: 1fr 36px; gap: 8px; align-items: end; }" in response.text
-    assert ".composer-submit { align-self: end" in response.text
+    assert ".composer-row { display: grid; grid-template-columns: 1fr; align-items: end; }" in response.text
+    assert ".composer-submit { width: 28px; height: 28px; padding: 0; border-radius: 9999px; line-height: 1; }" in response.text
     assert "textarea { min-height: 44px; max-height: 180px; border-radius: 22px; resize: none; overflow-y: auto; }" in response.text
     assert ".composer-sticky" not in response.text
     assert ".chat-scroll" not in response.text
+
+
+def test_composer_matches_borderless_input_with_submit_in_status_row():
+    client = TestClient(create_app())
+
+    html = client.get("/").text
+    css = client.get("/static/styles.css").text
+
+    assert ".composer-status { display: flex; align-items: center; justify-content: space-between;" in css
+    assert ".composer-row textarea { border: 0; outline: 0; padding: 8px 14px; overflow-y: hidden; }" in css
+    assert ".composer-row textarea:focus { box-shadow: none; }" in css
+    assert 'taskInput.style.overflowY = taskInput.scrollHeight > 180 ? "auto" : "hidden";' in html
+    assert 'class="composer-status"' in html
+    assert html.index("composer-submit") > html.index("composer-status")
 
 
 def test_index_lists_recent_sessions_as_conversation_items(tmp_path: Path):
@@ -277,7 +291,7 @@ def test_primary_navigation_omits_guardrail_link_but_direct_page_loads(tmp_path:
     guardrail = client.get("/guardrail")
     assert guardrail.status_code == 200
     assert "Guardrail Demo" in guardrail.text
-    assert 'class="shell"' in guardrail.text
+    assert 'class="chat-page"' in guardrail.text
 
 
 def test_provider_settings_save_updates_dashboard_without_persisting_key(tmp_path: Path, monkeypatch):
@@ -472,15 +486,8 @@ def test_approvals_page_loads(tmp_path: Path):
 
     assert response.status_code == 200
     assert "Approvals" in response.text
-    assert "Pending 0" in response.text
-    assert "Actions that need human confirmation for high-risk operations." in response.text
-    assert 'class="approval-tabs"' in response.text
-    assert "[Pending 0]" in response.text
-    assert "[Executing 0]" in response.text
-    assert "[Completed 0]" in response.text
-    assert "[Failed 0]" in response.text
-    assert 'class="approval-board"' in response.text
-    assert 'class="queue-grid"' not in response.text
+    assert "No approval records yet." in response.text
+    assert 'class="panel"' not in response.text
 
 
 def test_approvals_page_shows_failed_operation_summary_and_actions(tmp_path: Path):
@@ -498,19 +505,15 @@ def test_approvals_page_shows_failed_operation_summary_and_actions(tmp_path: Pat
     response = client.get("/approvals")
 
     assert response.status_code == 200
-    assert "Failed 1" in response.text
     assert "Execution failed" in response.text
     assert "Delete file" in response.text
     assert "Task: delete test.md" in response.text
     assert "Tool: run_shell" in response.text
     assert "Target: D:\\code\\Harness\\Harness\\.worktrees\\guarded-harness-impl\\test.md" in response.text
-    assert "Approval: approved" in response.text
-    assert "Execution: failed" in response.text
-    assert "Reason: del is a cmd built-in command and cannot be run directly by this executor" in response.text
+    assert "del is a cmd built-in command and cannot be run directly by this executor" in response.text
     assert "View task" not in response.text
     assert response.text.count("View trace") == 1
-    assert "Technical details" in response.text
-    assert "Copy command" not in response.text
+    assert "Details" in response.text
     assert 'class="approval-text-link"' in response.text
     assert 'class="button-secondary"' not in response.text
 

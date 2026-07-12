@@ -7,75 +7,77 @@
   <link rel="stylesheet" href="{{ url_for('static', path='styles.css') }}">
 </head>
 <body>
-  <main class="shell wide">
+  <main class="chat-page">
     <header class="site-header">
-      <a class="brand" href="/">Guarded Harness</a>
       <nav class="nav-links">
         <a href="/">Chat</a>
         <a href="/settings">Provider Settings</a>
         <a class="active" href="/approvals">Approvals{% if pending_approval_count %}<span class="nav-count">{{ pending_approval_count }}</span>{% endif %}</a>
       </nav>
     </header>
-
-    <section class="approval-board">
-      <header class="approval-board-header">
-        <div>
-          <h1>Approvals</h1>
-          <p>Actions that need human confirmation for high-risk operations.</p>
+    <div class="app-layout">
+      <aside class="session-sidebar">
+        <a class="sidebar-brand" href="/">Guarded Harness</a>
+        <div class="sidebar-scroll">
+          {% for group in sidebar_groups %}
+            <section class="sidebar-group">
+              <h2>{{ group.label }}</h2>
+              <nav class="sidebar-list">
+                {% for item in group.sessions %}
+                  <a class="sidebar-item" href="{{ item.trace_url }}">
+                    <span>{{ item.task }}</span>
+                    <small>{{ item.status_label }} · {{ item.step_label }}</small>
+                  </a>
+                {% endfor %}
+              </nav>
+            </section>
+          {% else %}
+            <p class="empty-state">No sessions yet.</p>
+          {% endfor %}
         </div>
-        <strong>Pending {{ approval_counts.pending }}</strong>
-      </header>
-
-      <nav class="approval-tabs" aria-label="Approval queues">
-        <span>[Pending {{ approval_counts.pending }}]</span>
-        <span>[Executing {{ approval_counts.executing }}]</span>
-        <span>[Completed {{ approval_counts.completed }}]</span>
-        <span>[Failed {{ approval_counts.failed }}]</span>
-      </nav>
-
-      {% for status, items in approval_groups.items() %}
-        {% if items %}
-          <section class="approval-section">
-            <h2>{{ status | title }}</h2>
-            {% for approval in items %}
-              <article class="approval-item approval-item-{{ status }}">
-                <h3>{{ approval.state_title }}</h3>
-                <h4>{{ approval.operation }}</h4>
-                <p>Task: {{ approval.session_task }}</p>
-                <p>Tool: {{ approval.tool }}</p>
-                {% if approval.target %}<p>Target: {{ approval.target }}</p>{% endif %}
-                <p>Approval: {{ approval.approval_state }} &nbsp;&nbsp; Execution: {{ approval.execution_state }}</p>
-                <p>Reason: {{ approval.display_reason }}</p>
-
-                {% if approval.status == "pending" %}
-                  <div class="approval-actions">
-                    <form action="/approvals/{{ approval.id }}/approve" method="post"><button type="submit">Approve once</button></form>
-                    <form action="/approvals/{{ approval.id }}/deny" method="post"><button class="deny" type="submit">Deny</button></form>
+      </aside>
+      <section class="chat-main">
+        <section class="hero">
+          <h1>Approvals</h1>
+          <p>Pending {{ approval_counts.pending }} · Executing {{ approval_counts.executing }} · Completed {{ approval_counts.completed }} · Failed {{ approval_counts.failed }}</p>
+        </section>
+        {% if not approvals %}
+          <p class="empty-state">No approval records yet.</p>
+        {% else %}
+          {% for status, items in approval_groups.items() if items %}
+            <section class="panel">
+              <h2>{{ status | title }} ({{ items | length }})</h2>
+              {% for approval in items %}
+                <article class="approval-item">
+                  <p><strong>{{ approval.operation }}</strong> — {{ approval.state_title }}</p>
+                  <p class="approval-meta">Task: {{ approval.session_task }} · Tool: {{ approval.tool }}{% if approval.target %} · Target: {{ approval.target }}{% endif %}</p>
+                  <p class="approval-meta">{{ approval.display_reason }}</p>
+                  {% if approval.status == "pending" %}
+                    <div class="approval-actions">
+                      <form action="/approvals/{{ approval.id }}/approve" method="post"><button type="submit">Approve</button></form>
+                      <form action="/approvals/{{ approval.id }}/deny" method="post"><button class="deny" type="submit">Deny</button></form>
+                    </div>
+                  {% elif approval.status == "executing" %}
+                    <form action="/approvals/{{ approval.id }}/mark-failed" method="post" class="approval-actions">
+                      <input name="reason" placeholder="Failure reason" required>
+                      <button class="deny" type="submit">Mark failed</button>
+                    </form>
+                  {% endif %}
+                  <div class="approval-links">
+                    <a class="approval-text-link" href="{{ approval.trace_url }}">View trace</a>
+                    <details>
+                      <summary class="approval-text-link">Details</summary>
+                      <pre>{{ approval.action_json }}</pre>
+                    </details>
                   </div>
-                {% elif approval.status == "executing" %}
-                  <form action="/approvals/{{ approval.id }}/mark-failed" method="post">
-                    <label>Reason <input name="reason" required></label>
-                    <button class="deny" type="submit">Mark failed</button>
-                  </form>
-                {% endif %}
-
-                <div class="approval-links">
-                  <a class="approval-text-link" href="{{ approval.trace_url }}">View trace</a>
-                  <details>
-                    <summary class="approval-text-link">Technical details</summary>
-                    <pre>{{ approval.action_json }}</pre>
-                  </details>
-                </div>
-              </article>
-            {% endfor %}
-          </section>
+                </article>
+                {% if not loop.last %}<hr>{% endif %}
+              {% endfor %}
+            </section>
+          {% endfor %}
         {% endif %}
-      {% endfor %}
-
-      {% if not approvals %}
-        <p class="empty-state">No approval records yet.</p>
-      {% endif %}
-    </section>
+      </section>
+    </div>
   </main>
 </body>
 </html>

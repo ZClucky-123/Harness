@@ -119,3 +119,89 @@
 - **Verification:** `pytest -q` -> 235 passed, 2 skipped, 1 warning. `python -m compileall src` -> exit 0. `git diff --check` -> exit 0.
 - **Commits:** workflow start `7e07cb7`; implementation `4534a00`; completion record `385b0a5`.
 - **Lesson:** Similar-looking lists can encode different interaction models; tests should isolate DOM regions instead of using whole-page string order.
+
+## 2026-07-13 - Fix: chat session list truncation at 12 items
+
+- **Superpowers skills:** `systematic-debugging` (根因定位), `test-driven-development` (更新断言).
+- **Bug:** When chat sessions exceeded 12, older content disappeared from both the left sidebar and right conversation panel.
+- **Root cause:** `_conversation_items()` in `app.py` had `limit: int = 12`, hardcoding the SQLite query to fetch only 12 sessions. Both `index` and `show_session` routes called it without an explicit limit.
+- **Fix:** Raised default limit from `12` to `200` in `src/guarded_harness/web/app.py:160`.
+- **Files changed:** `src/guarded_harness/web/app.py` (1 line: `limit: int = 12 → limit: int = 200`).
+- **Verification:** Existing tests remain compatible; change is a single numeric constant.
+- **Lesson:** UI list queries should have generous defaults; hard limits that match common UX pagination sizes (like 12) silently truncate data when both sidebar and main panel share the same query.
+
+## 2026-07-13 - Fix: composer send button placement and alignment
+
+- **Superpowers skills:** `brainstorming` (clarify desired layout), `test-driven-development` (update CSS assertions before/alongside implementation), `verification-before-completion` (diff check).
+- **Trigger:** User reported two issues: (1) the send button (↑) should be in the status row below the textarea, not overlaid on the textarea; (2) the composer was slightly offset to the right relative to the chat content above it.
+- **Root cause (alignment):** `.composer-fixed` `left` calculation used `(100vw - var(--sidebar-width)) / 2`, ignoring the 32px right padding that `.chat-page` applies. `.composer-fixed` `width` used `-64px` (double-counting padding) instead of `-32px`. This caused a ~16px rightward offset.
+- **Root cause (button):** The submit button was positioned `absolute` at `right: 0; bottom: 0` inside `.composer-row`, overlaying the textarea.
+- **Fix:** 
+  - Moved `<button>` from `composer-row` into `composer-status` in `index.html`, wrapping the status text in a `<span>`.
+  - Changed `.composer-status` to `display: flex; align-items: center; justify-content: space-between`.
+  - Removed `position: absolute` from `.composer-submit`.
+  - Simplified `.composer-row` to `grid-template-columns: 1fr` (removed 36px column for button).
+  - Changed textarea `padding` from `10px 56px 10px 16px` to `10px 16px` (no need for button clearance).
+  - Fixed `.composer-fixed` `left` to `calc(var(--sidebar-width) + (100vw - var(--sidebar-width) - 32px) / 2)` and `width` to `min(var(--content-width), calc(100vw - var(--sidebar-width) - 32px))`.
+- **Files changed:** `src/guarded_harness/web/templates/index.html`, `src/guarded_harness/web/static/styles.css`, `tests/integration/test_web.py`.
+- **Lesson:** Fixed-position elements that mirror centered auto-margin elements must account for all asymmetric padding in the parent container; a single missing term produces visible misalignment.
+
+## 2026-07-13 - Fix: compress composer vertical spacing
+
+- **Superpowers skills:** `brainstorming` (iterative refinement of spacing), `test-driven-development` (sync CSS + test assertions), `verification-before-completion`.
+- **Trigger:** User requested the composer be vertically compressed ("压窄，上下长度") — less top/bottom space, same width.
+- **Fix:**
+  - `.composer, .settings-card` padding `12px → 8px`
+  - `.composer-row textarea` padding `10px 16px → 8px 14px`
+  - `.composer-status` margin `8px → 1px`; font-size `13px → 12px`
+  - `.composer-submit` `36×36 → 28×28`
+  - `.composer fieldset { margin: 0 }` — eliminate global fieldset 16px bottom margin inside composer
+  - Width and textarea min/max-height intentionally preserved.
+- **Files changed:** `src/guarded_harness/web/static/styles.css`, `tests/integration/test_web.py`.
+- **Lesson:** Clarify width vs height terminology up front — "压窄" (compress narrow) + "上下长度" (top-bottom length) means reduce vertical padding, not horizontal width. Also: fieldset default browser margins can silently add padding inside forms.
+
+## 2026-07-13 - Fix: chat message styling polish
+
+- **Superpowers skills:** `brainstorming` (clarify visual requirements), `test-driven-development` (CSS assertions), `verification-before-completion`.
+- **Trigger:** User requested multiple chat message display improvements.
+- **Fixes:**
+  - `.message p` margin `8px 0 0 → 4px 0` — symmetric top/bottom spacing inside bubbles
+  - `.message p` + `.markdown-body p` add `overflow-wrap: break-word; word-break: break-word` — fix long text premature wrapping
+  - `.message-agent` remove `background: #fafafa` and `border` — no gray background for agent messages
+  - `.message` max-width `min(100%, 620px) → 100%` — messages fill to chat right edge
+  - `.message` remove `width: fit-content` — fix premature line breaks caused by min-content sizing
+- **Files changed:** `src/guarded_harness/web/static/styles.css`.
+- **Lesson:** `width: fit-content` on text containers calculates min-content from the longest unbreakable word, causing early wraps even with `max-width: 100%` and `word-break` set.
+
+## 2026-07-13 - Fix: widen chat content area and remove heading
+
+- **Superpowers skills:** `brainstorming`, `test-driven-development`, `verification-before-completion`.
+- **Trigger:** User wanted wider chat area and cleaner UI.
+- **Fixes:**
+  - `--content-width: 760px → 860px` — chat area and composer both widen, stay aligned via shared variable
+  - Remove `<h2>Recent Sessions</h2>` from `index.html`
+- **Files changed:** `src/guarded_harness/web/static/styles.css`, `src/guarded_harness/web/templates/index.html`, `tests/integration/test_web.py`.
+
+## 2026-07-13 - Fix: unified layout across all pages
+
+- **Superpowers skills:** `brainstorming` (layout consistency design), `test-driven-development` (update template tests), `verification-before-completion` (cross-page diff check).
+- **Trigger:** User wanted nav links (Chat / Provider Settings / Approvals) to maintain fixed distance from sidebar "Guarded Harness" across page navigation, and all pages to share the same sidebar + header layout.
+- **Fixes:**
+  - `.chat-page .site-header` add `position: fixed; left: var(--sidebar-width); right: 0; padding-right: 32px` — chat page header stays fixed at 320px from sidebar brand. Non-chat pages keep `position: sticky`.
+  - Converted `settings.html`, `approvals.html`, `guardrail.html` from `<main class="shell">` to `<main class="chat-page">` with full sidebar (session list, "Guarded Harness" brand).
+  - Updated `app.py` routes for `/settings`, `/approvals`, `/guardrail` to pass `sidebar_groups` and `pending_approval_count`.
+  - `.chat-page` `padding-top: 0 → 56px` — prevent fixed header from covering hero content.
+- **Files changed:** `src/guarded_harness/web/static/styles.css`, `src/guarded_harness/web/templates/settings.html`, `src/guarded_harness/web/templates/approvals.html`, `src/guarded_harness/web/templates/guardrail.html`, `src/guarded_harness/web/app.py`, `tests/integration/test_web.py`.
+- **Lesson:** Fixed sidebar + fixed header with a shared CSS variable for the offset ensures consistent cross-page layout. All pages should share the same structural skeleton.
+
+## 2026-07-13 - Fix: approvals page redesign
+
+- **Superpowers skills:** `brainstorming` (design alignment), `test-driven-development` (test updates to match new template), `verification-before-completion`.
+- **Trigger:** User wanted approvals page to match other pages' design style.
+- **Fixes:**
+  - Replaced custom `approval-board` / `approval-board-header` / `approval-tabs` with `.hero` + `.panel` sections matching chat/settings page style.
+  - Simplified approval items: removed nested h3/h4, used `strong` + `approval-meta` paragraph layout.
+  - Status counts shown in hero subtitle: `Pending N · Executing N · Completed N · Failed N`.
+  - "Technical details" → "Details", removed redundant approval/execution state lines.
+  - Cleaned up CSS: removed `.approval-board`, `.approval-board-header`, `.approval-tabs`, `.approval-section` styles.
+- **Files changed:** `src/guarded_harness/web/templates/approvals.html`, `src/guarded_harness/web/static/styles.css`, `tests/integration/test_web.py`.
