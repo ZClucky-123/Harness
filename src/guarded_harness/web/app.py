@@ -119,11 +119,11 @@ def _session_summary(events) -> str:
     for event in reversed(events):
         if event.event_type == "finished":
             message = event.payload.get("message", "finished")
-            return str(message)
+            return str(redact_secrets(message))
         if event.event_type == "approval_requested":
             return "waiting for human approval"
         if event.event_type == "guardrail_denied":
-            return str(event.payload.get("reason", "guardrail denied the action"))
+            return str(redact_secrets(event.payload.get("reason", "guardrail denied the action")))
         if event.event_type == "parser_error":
             return "model response could not be parsed as an action"
         if event.event_type == "max_steps":

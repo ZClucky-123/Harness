@@ -11,11 +11,11 @@
     <header class="topbar">
       <pre class="wordmark">GUARDED
 HARNESS</pre>
-      <nav><a href="/settings">Provider Settings</a> <a href="/approvals">Approvals</a> <a href="/guardrail">Guardrail Demo</a></nav>
+      <nav><a href="/settings">Provider Settings</a> <a href="/approvals">Approvals</a></nav>
     </header>
     <section class="hero-terminal" aria-label="Harness terminal preview">
       <p class="terminal-muted">[agent = llm + harness]</p>
-      <h1>Dashboard</h1>
+      <h1>Chat Workspace</h1>
       <p>| governance guardrails | hitl state machine | provider adapters |</p>
       <div class="prompt-row">mode: <strong>{{ settings.mode }}</strong> · model: <strong>{{ settings.model }}</strong> · key: <strong>{% if credential_configured %}configured{% else %}missing{% endif %}</strong></div>
     </section>
@@ -30,7 +30,6 @@ HARNESS</pre>
       </div>
       <div class="dashboard-panel">
         <h2>[+] Recent Sessions</h2>
-        <h1>Chat Workspace</h1>
         {% for item in conversation_items %}
           <article class="conversation-item">
             <p>{{ item.task }}</p>

@@ -9,15 +9,16 @@ from guarded_harness.memory.store import SQLiteStore
 from guarded_harness.web.app import create_app
 
 
-def test_index_loads():
-    client = TestClient(create_app())
+def test_index_loads(tmp_path: Path):
+    client = TestClient(create_app(tmp_path / "state.sqlite3", workspace_root=tmp_path))
 
     response = client.get("/")
 
     assert response.status_code == 200
-    assert "Dashboard" in response.text
+    assert "Chat Workspace" in response.text
     assert "Provider Settings" in response.text
-    assert "Guardrail Demo" in response.text
+    assert "Recent Sessions" in response.text
+    assert "/guardrail" not in response.text
     assert "mode:" in response.text
     assert "deepseek-v4-flash" in response.text
     assert 'name="api_key"' not in response.text
@@ -40,6 +41,19 @@ def test_index_lists_recent_sessions_as_conversation_items(tmp_path: Path):
     assert "first done" in response.text
     assert "second done" in response.text
     assert response.text.index("second task") < response.text.index("first task")
+
+
+def test_index_redacts_recent_session_summary_secrets(tmp_path: Path):
+    store = SQLiteStore(tmp_path / "state.sqlite3", workspace_root=tmp_path)
+    session = store.create_session("finished task", tmp_path)
+    store.append_audit(session.id, "finished", {"message": "finished password=summary-secret"})
+    client = TestClient(create_app(store.db_path, workspace_root=tmp_path))
+
+    response = client.get("/")
+
+    assert response.status_code == 200
+    assert "summary-secret" not in response.text
+    assert "[REDACTED]" in response.text
 
 
 def test_provider_settings_page_loads_defaults(tmp_path: Path, monkeypatch):

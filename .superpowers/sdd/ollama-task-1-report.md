@@ -38,3 +38,26 @@ The failing pre-existing `test_index_loads` expects `deepseek-v4-flash`, but thi
 ## Commit
 
 The implementation and this report are committed in the task commit returned with the completion status.
+
+## Review Fixes
+
+- Redacted recent-session finished and guardrail-denial summaries before rendering them on the home page.
+- Removed `/guardrail` from the home page primary navigation while keeping the route covered and working.
+- Isolated `test_index_loads` with `tmp_path` and updated it for Chat Workspace expectations.
+- Added coverage proving a secret in a finished-session summary is absent from `/` and `[REDACTED]` is present.
+
+Focused review-fix tests:
+
+```powershell
+.venv\Scripts\python.exe -m pytest tests/integration/test_web.py::test_index_loads tests/integration/test_web.py::test_index_lists_recent_sessions_as_conversation_items -q
+```
+
+Result: `2 passed, 1 warning`.
+
+Full web integration tests:
+
+```powershell
+.venv\Scripts\python.exe -m pytest tests/integration/test_web.py -q
+```
+
+Result: `19 passed, 1 warning`.
