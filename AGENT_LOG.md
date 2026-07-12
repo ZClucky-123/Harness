@@ -117,5 +117,5 @@
 - **Subagent output key fragments:** No delegated subagent output. `Codex(main)` wrote failing tests for chat order, sidebar brand/scroll, white composer, textarea growth, and removal of mojibake separators, then implemented the smallest view-model/template/CSS changes.
 - **Manual intervention:** User corrected the previous interpretation: left sidebar remains newest-first, but the right chat transcript must be old-to-new with newest at the bottom.
 - **Verification:** `pytest -q` -> 235 passed, 2 skipped, 1 warning. `python -m compileall src` -> exit 0. `git diff --check` -> exit 0.
-- **Commits:** workflow start `7e07cb7`; implementation `4534a00`; completion record commit pending.
+- **Commits:** workflow start `7e07cb7`; implementation `4534a00`; completion record `385b0a5`.
 - **Lesson:** Similar-looking lists can encode different interaction models; tests should isolate DOM regions instead of using whole-page string order.
