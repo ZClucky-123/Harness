@@ -108,3 +108,14 @@
 - **Subagent output key fragments:** No delegated subagent output. Work is performed by `Codex(main)`.
 - **Manual intervention:** User approved the design and clarified the expected behavior with screenshots.
 - **Lesson so far:** The sidebar ordering and conversation ordering are separate UX models and need separate tests.
+
+## 2026-07-13 01:53:03 +08:00 - Task 13 conversation/sidebar polish implemented
+
+- **Task:** Task 13 - Chat Conversation Order and Sidebar Header Polish.
+- **Superpowers skills:** `test-driven-development`, `verification-before-completion`.
+- **Prompt/context configuration:** Continued from the approved four screenshot corrections. Existing untracked `test.md` was left untouched.
+- **Subagent output key fragments:** No delegated subagent output. `Codex(main)` wrote failing tests for chat order, sidebar brand/scroll, white composer, textarea growth, and removal of mojibake separators, then implemented the smallest view-model/template/CSS changes.
+- **Manual intervention:** User corrected the previous interpretation: left sidebar remains newest-first, but the right chat transcript must be old-to-new with newest at the bottom.
+- **Verification:** `pytest -q` -> 235 passed, 2 skipped, 1 warning. `python -m compileall src` -> exit 0. `git diff --check` -> exit 0.
+- **Commits:** workflow start `7e07cb7`; implementation `4534a00`; completion record commit pending.
+- **Lesson:** Similar-looking lists can encode different interaction models; tests should isolate DOM regions instead of using whole-page string order.

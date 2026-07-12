@@ -1041,12 +1041,12 @@ git commit -m "docs: add distribution ci and process documentation"
 - Modify: `AGENT_LOG.md`
 
 - [x] **Step 1: Record task start and workflow requirements**
-  - Commit: pending
-- [ ] **Step 2: Add failing WebUI tests for conversation order, composer behavior, sidebar scroll, and sidebar brand**
-  - Commit: pending
-- [ ] **Step 3: Implement view-model, templates, and CSS**
-  - Commit: pending
-- [ ] **Step 4: Run focused and full verification**
-  - Commit: pending
-- [ ] **Step 5: Record final commit hashes and lessons**
+  - Commit: `7e07cb7`
+- [x] **Step 2: Add failing WebUI tests for conversation order, composer behavior, sidebar scroll, and sidebar brand**
+  - Commit: `4534a00`
+- [x] **Step 3: Implement view-model, templates, and CSS**
+  - Commit: `4534a00`
+- [x] **Step 4: Run focused and full verification**
+  - Commit: `4534a00`
+- [x] **Step 5: Record final commit hashes and lessons**
   - Commit: pending
