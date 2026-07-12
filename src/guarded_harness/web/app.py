@@ -100,7 +100,7 @@ def _loop_for_provider(workspace_root: Path, store: SQLiteStore, provider: LLMPr
 
 
 def _conversation_items(store: SQLiteStore, limit: int = 12) -> list[dict[str, object]]:
-    return [_conversation_item(store, session) for session in store.list_sessions(limit)]
+    return [_conversation_item(store, session) for session in reversed(store.list_sessions(limit))]
 
 
 def _conversation_item(store: SQLiteStore, session) -> dict[str, object]:

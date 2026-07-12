@@ -6,13 +6,15 @@
 
 body { margin: 0; background: #fff; }
 .shell { max-width: 760px; margin: 0 auto; padding: 24px; }
+.chat-app { min-height: 100vh; display: grid; grid-template-rows: auto auto minmax(220px, 1fr) auto; gap: 16px; }
 .shell.wide { max-width: 1040px; }
-.site-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 56px; }
+.site-header { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 56px; background: rgba(255,255,255,0.96); backdrop-filter: blur(12px); }
 .brand { color: #000; font-weight: 600; text-decoration: none; }
 .nav-links { display: flex; gap: 16px; flex-wrap: wrap; }
 .nav-links a, .muted-link { color: #737373; text-decoration: none; }
 .nav-links a:hover, .muted-link:hover { color: #000; text-decoration: underline; text-underline-offset: 4px; }
 .hero { margin: 72px 0 32px; text-align: center; }
+.compact-hero { position: sticky; top: 56px; z-index: 9; margin: 0; padding: 16px 0; background: rgba(255,255,255,0.96); backdrop-filter: blur(12px); }
 h1 { margin: 0; font-size: 36px; line-height: 1.11; font-weight: 500; letter-spacing: 0; }
 h2 { margin: 0 0 16px; font-size: 24px; line-height: 1.33; font-weight: 600; letter-spacing: 0; }
 p { color: #737373; line-height: 1.5; }
@@ -20,6 +22,7 @@ p { color: #737373; line-height: 1.5; }
 .pill, .mode-option { border: 1px solid #e5e5e5; border-radius: 9999px; padding: 8px 16px; background: #fafafa; color: #000; font-size: 14px; }
 .chat-panel, .panel, .queue-card, .terminal-card { border: 1px solid #e5e5e5; border-radius: 12px; background: #fff; }
 .chat-panel { padding: 16px; }
+.chat-scroll { overflow-y: auto; min-height: 0; max-height: calc(100vh - 300px); scroll-behavior: smooth; }
 .conversation-list { display: grid; gap: 24px; }
 .conversation-item { display: grid; gap: 10px; }
 .message { width: fit-content; max-width: min(100%, 620px); padding: 12px 16px; border-radius: 16px; }
@@ -28,6 +31,7 @@ p { color: #737373; line-height: 1.5; }
 .message-agent { justify-self: start; background: #fafafa; border: 1px solid #e5e5e5; }
 .message-user strong, .message-agent strong { color: #000; font-weight: 500; }
 .composer { margin: 24px 0 64px; padding: 16px; border: 1px solid #e5e5e5; border-radius: 24px; background: #fafafa; }
+.composer-sticky { position: sticky; bottom: 16px; margin: 0 0 8px; }
 label { display: block; margin: 14px 0 6px; font-weight: 500; color: #000; }
 input[type="text"], input:not([type]), input[type="password"], textarea { box-sizing: border-box; width: 100%; border: 1px solid #e5e5e5; border-radius: 9999px; padding: 10px 16px; background: #fff; color: #000; font: inherit; }
 textarea { min-height: 112px; border-radius: 24px; resize: vertical; }

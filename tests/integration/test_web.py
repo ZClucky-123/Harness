@@ -25,10 +25,13 @@ def test_index_loads_chat_workspace_without_guardrail_nav(tmp_path: Path):
     assert "mode:" in response.text
     assert "deepseek-v4-flash" in response.text
     assert 'name="api_key"' not in response.text
-    assert 'class="chat-panel"' in response.text
-    assert 'class="composer"' in response.text
+    assert "chat-app" in response.text
+    assert "chat-scroll" in response.text
+    assert 'id="chat-scroll"' in response.text
+    assert "composer-sticky" in response.text
     assert 'class="status-pills"' in response.text
     assert '<h2>Provider</h2>' not in response.text
+    assert "scrollTop = chat.scrollHeight" in response.text
 
 
 def test_index_lists_recent_sessions_as_conversation_items(tmp_path: Path):
@@ -47,7 +50,7 @@ def test_index_lists_recent_sessions_as_conversation_items(tmp_path: Path):
     assert "second task" in response.text
     assert "first done" in response.text
     assert "second done" in response.text
-    assert response.text.index("second task") < response.text.index("first task")
+    assert response.text.index("first task") < response.text.index("second task")
     assert response.text.count('class="message message-user"') == 2
     assert response.text.count('class="message message-agent"') == 2
     assert "running" in response.text

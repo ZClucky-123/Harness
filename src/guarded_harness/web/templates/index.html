@@ -7,12 +7,12 @@
   <link rel="stylesheet" href="{{ url_for('static', path='styles.css') }}">
 </head>
 <body>
-  <main class="shell">
+  <main class="shell chat-app">
     <header class="site-header">
       <a class="brand" href="/">Guarded Harness</a>
       <nav class="nav-links"><a href="/settings">Provider Settings</a><a href="/approvals">Approvals</a></nav>
     </header>
-    <section class="hero">
+    <section class="hero compact-hero">
       <h1>Chat Workspace</h1>
       <p>Governed tasks with provider adapters and human approval.</p>
       <div class="status-pills">
@@ -21,7 +21,7 @@
         <span class="pill">key: {% if credential_configured %}configured{% else %}missing{% endif %}</span>
       </div>
     </section>
-    <section class="chat-panel">
+    <section class="chat-panel chat-scroll" id="chat-scroll">
       <h2>Recent Sessions</h2>
       <div class="conversation-list">
         {% for item in conversation_items %}
@@ -40,7 +40,7 @@
         {% endfor %}
       </div>
     </section>
-    <form class="composer" action="/sessions" method="post">
+    <form class="composer composer-sticky" action="/sessions" method="post">
       <fieldset>
         <legend>Task</legend>
         <label for="task">Task</label>
@@ -49,5 +49,11 @@
       </fieldset>
     </form>
   </main>
+  <script>
+    const chat = document.getElementById("chat-scroll");
+    if (chat) {
+      chat.scrollTop = chat.scrollHeight;
+    }
+  </script>
 </body>
 </html>
