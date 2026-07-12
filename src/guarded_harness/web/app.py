@@ -99,6 +99,38 @@ def _loop_for_provider(workspace_root: Path, store: SQLiteStore, provider: LLMPr
     return AgentLoop.for_workspace(workspace_root, provider, store)
 
 
+def _conversation_items(store: SQLiteStore, limit: int = 12) -> list[dict[str, object]]:
+    return [_conversation_item(store, session) for session in store.list_sessions(limit)]
+
+
+def _conversation_item(store: SQLiteStore, session) -> dict[str, object]:
+    events = store.list_audit(session.id)
+    return {
+        "id": session.id,
+        "task": redact_secrets(session.task),
+        "status": session.status.value,
+        "step_count": session.step_count,
+        "summary": _session_summary(events),
+        "trace_url": f"/sessions/{session.id}",
+    }
+
+
+def _session_summary(events) -> str:
+    for event in reversed(events):
+        if event.event_type == "finished":
+            message = event.payload.get("message", "finished")
+            return str(message)
+        if event.event_type == "approval_requested":
+            return "waiting for human approval"
+        if event.event_type == "guardrail_denied":
+            return str(event.payload.get("reason", "guardrail denied the action"))
+        if event.event_type == "parser_error":
+            return "model response could not be parsed as an action"
+        if event.event_type == "max_steps":
+            return "stopped after reaching max steps"
+    return "session started"
+
+
 def create_app(store_path: Path | None = None, workspace_root: Path | None = None) -> FastAPI:
     """Create a local, deterministic WebUI backed by a workspace-local store."""
     store, root = _store_for(store_path, workspace_root)
@@ -113,10 +145,10 @@ def create_app(store_path: Path | None = None, workspace_root: Path | None = Non
             request,
             "index.html",
             {
-                "title": "Dashboard",
+                "title": "Chat Workspace",
                 "settings": settings,
                 "credential_configured": credential_configured,
-                "sessions": [],
+                "conversation_items": _conversation_items(store),
             },
         )
 

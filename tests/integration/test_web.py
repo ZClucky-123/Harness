@@ -23,6 +23,25 @@ def test_index_loads():
     assert 'name="api_key"' not in response.text
 
 
+def test_index_lists_recent_sessions_as_conversation_items(tmp_path: Path):
+    store = SQLiteStore(tmp_path / "state.sqlite3", workspace_root=tmp_path)
+    first = store.create_session("first task", tmp_path)
+    store.append_audit(first.id, "finished", {"message": "first done"})
+    second = store.create_session("second task", tmp_path)
+    store.append_audit(second.id, "finished", {"message": "second done"})
+    client = TestClient(create_app(store.db_path, workspace_root=tmp_path))
+
+    response = client.get("/")
+
+    assert response.status_code == 200
+    assert "Chat Workspace" in response.text
+    assert "first task" in response.text
+    assert "second task" in response.text
+    assert "first done" in response.text
+    assert "second done" in response.text
+    assert response.text.index("second task") < response.text.index("first task")
+
+
 def test_provider_settings_page_loads_defaults(tmp_path: Path, monkeypatch):
     monkeypatch.setattr("guarded_harness.web.app._credential_store", lambda: _FakeCredentials(None))
     client = TestClient(create_app(tmp_path / "state.sqlite3", workspace_root=tmp_path))

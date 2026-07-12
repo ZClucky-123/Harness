@@ -125,6 +125,28 @@ class SQLiteStore:
             row["pending_approval_id"],
         )
 
+    def list_sessions(self, limit: int = 20) -> list[SessionState]:
+        with self._connect() as db:
+            rows = db.execute(
+                """
+                SELECT * FROM sessions
+                ORDER BY updated_at DESC, created_at DESC
+                LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+        return [
+            SessionState(
+                row["id"],
+                row["task"],
+                SessionStatus(row["status"]),
+                Path(row["workspace"]),
+                row["step_count"],
+                row["pending_approval_id"],
+            )
+            for row in rows
+        ]
+
     def update_session(self, session: SessionState) -> None:
         with self._connect() as db:
             result = db.execute(

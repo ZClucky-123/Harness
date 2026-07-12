@@ -30,7 +30,15 @@ HARNESS</pre>
       </div>
       <div class="dashboard-panel">
         <h2>[+] Recent Sessions</h2>
-        <p class="terminal-muted-light">No recent sessions listed yet.</p>
+        <h1>Chat Workspace</h1>
+        {% for item in conversation_items %}
+          <article class="conversation-item">
+            <p>{{ item.task }}</p>
+            <p>{{ item.summary }}</p>
+            <p>{{ item.status }} 路 {{ item.step_count }} steps</p>
+            <a href="{{ item.trace_url }}">View trace</a>
+          </article>
+        {% endfor %}
       </div>
     </section>
     <form class="terminal-form" action="/sessions" method="post">
