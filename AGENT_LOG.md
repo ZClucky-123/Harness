@@ -79,3 +79,14 @@
 - **Subagent output key fragments:** No delegated subagent output. Work is performed by `Codex(main)`.
 - **Manual intervention:** User approved the design and required explicit process records in `PLAN.md` and `AGENT_LOG.md`, plus commit messages that identify subagent/manual changes.
 - **Lesson so far:** UI polish requests must be tracked as first-class tasks, not hidden inside one large implementation commit.
+
+## 2026-07-13 01:38:00 +08:00 - Task 12 WebUI layout polish implemented
+
+- **Task:** Task 12 - ChatGPT-like WebUI Layout Polish.
+- **Superpowers skills:** `test-driven-development`, `verification-before-completion`.
+- **Prompt/context configuration:** Continued from the approved screenshot requirements. Existing worktree only had untracked `test.md`; it was intentionally left untouched.
+- **Subagent output key fragments:** No delegated subagent output. `Codex(main)` wrote failing web integration assertions, observed the expected red tests, then implemented the minimal template/CSS changes.
+- **Manual intervention:** User's requested changes drove all UI decisions: keep only `View trace`, remove `Copy command`, use underlined text for `Technical details`, pin left sidebar with its own scroll, and align composer width to chat content.
+- **Verification:** `pytest -q` -> 235 passed, 2 skipped, 1 warning. `python -m compileall src` -> exit 0. `git diff --check` -> exit 0.
+- **Commits:** workflow start `72877ec`; implementation `33ecf68`; completion record commit pending.
+- **Lesson:** Layout constants should be explicit CSS variables (`--sidebar-width`, `--content-width`) so future screenshot-driven tuning stays local and testable.
