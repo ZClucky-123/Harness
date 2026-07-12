@@ -44,7 +44,7 @@
 - Produces: `SQLiteStore.list_sessions(limit: int = 20) -> list[SessionState]`, ordered newest first by `updated_at`.
 - Consumes: Existing `SessionState` constructor and `SessionStatus`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Add this test near the Web index tests in `tests/integration/test_web.py`:
 
@@ -68,7 +68,7 @@ def test_index_lists_recent_sessions_as_conversation_items(tmp_path: Path):
     assert response.text.index("second task") < response.text.index("first task")
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run:
 
@@ -78,7 +78,7 @@ Run:
 
 Expected: FAIL because the home page does not read sessions and `Chat Workspace` is absent.
 
-- [ ] **Step 3: Add store query**
+- [x] **Step 3: Add store query**
 
 Add this method to `SQLiteStore` after `get_session`:
 
@@ -106,7 +106,7 @@ Add this method to `SQLiteStore` after `get_session`:
         ]
 ```
 
-- [ ] **Step 4: Add WebUI conversation helpers**
+- [x] **Step 4: Add WebUI conversation helpers**
 
 In `src/guarded_harness/web/app.py`, add helpers above `create_app`:
 
@@ -150,7 +150,7 @@ Then update the `/` route context:
                 "conversation_items": _conversation_items(store),
 ```
 
-- [ ] **Step 5: Update index template minimally**
+- [x] **Step 5: Update index template minimally**
 
 In `index.html`, include `Chat Workspace` and loop over `conversation_items` so the test can pass before full styling:
 
@@ -166,7 +166,7 @@ In `index.html`, include `Chat Workspace` and loop over `conversation_items` so 
 {% endfor %}
 ```
 
-- [ ] **Step 6: Run test to verify it passes**
+- [x] **Step 6: Run test to verify it passes**
 
 Run:
 
@@ -176,7 +176,7 @@ Run:
 
 Expected: PASS.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/guarded_harness/memory/store.py src/guarded_harness/web/app.py src/guarded_harness/web/templates/index.html tests/integration/test_web.py
@@ -536,3 +536,4 @@ Report:
 - Spec coverage: Chat Workspace, hidden Guardrail Demo entry, saved conversation display, home-page redirect, Ollama visual style, provider settings, approvals, session trace, and direct guardrail route are each mapped to tasks.
 - Placeholder scan: no TBD/TODO/implement-later language.
 - Type consistency: `SQLiteStore.list_sessions(limit: int = 20)` is introduced in Task 1 and consumed by `_conversation_items(store, limit: int = 12)`.
+
