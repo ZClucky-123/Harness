@@ -129,18 +129,18 @@ def _provider_settings_for_session(store: SQLiteStore, session_id: str) -> dict[
 
 
 def _provider_status(settings: dict[str, str], credential_configured: bool) -> str:
-    mode_label = "实时模式" if settings["mode"] == "live" else "模拟模式"
-    key_label = "密钥已配置" if credential_configured else "密钥未配置"
+    mode_label = "live" if settings["mode"] == "live" else "mock"
+    key_label = "key configured" if credential_configured else "key missing"
     return f"{mode_label} · {settings['model']} · {key_label}"
 
 
 def _status_label(status: str) -> str:
     return {
-        "running": "运行中",
-        "waiting_approval": "等待审批",
-        "finished": "已完成",
-        "failed": "执行失败",
-        "max_steps": "达到最大步数",
+        "running": "running",
+        "waiting_approval": "waiting approval",
+        "finished": "finished",
+        "failed": "failed",
+        "max_steps": "max steps",
     }.get(status, status)
 
 
@@ -154,11 +154,16 @@ def _sidebar_groups(items: list[dict[str, object]], current_session_id: str | No
         copy = dict(item)
         copy["active"] = item["id"] == current_session_id
         grouped_items.append(copy)
-    return [{"label": "今天", "sessions": grouped_items}] if grouped_items else []
+    return [{"label": "Today", "sessions": grouped_items}] if grouped_items else []
 
 
 def _conversation_items(store: SQLiteStore, limit: int = 12) -> list[dict[str, object]]:
-    return [_conversation_item(store, session) for session in reversed(store.list_sessions(limit))]
+    return [_conversation_item(store, session) for session in store.list_sessions(limit)]
+
+
+def _step_label(step_count: int) -> str:
+    unit = "step" if step_count == 1 else "steps"
+    return f"{step_count} {unit}"
 
 
 def _conversation_item(store: SQLiteStore, session) -> dict[str, object]:
@@ -169,13 +174,14 @@ def _conversation_item(store: SQLiteStore, session) -> dict[str, object]:
         "status": session.status.value,
         "status_label": _status_label(session.status.value),
         "step_count": session.step_count,
+        "step_label": _step_label(session.step_count),
         "summary": _session_summary(events),
         "trace_url": f"/sessions/{session.id}",
     }
     if session.pending_approval_id:
         try:
             approval = store.get_approval(session.pending_approval_id)
-            item["approval"] = _approval_view(approval)
+            item["approval"] = _approval_view(store, approval)
         except KeyError:
             item["approval"] = None
     else:
@@ -183,53 +189,94 @@ def _conversation_item(store: SQLiteStore, session) -> dict[str, object]:
     return item
 
 
-def _approval_view(approval) -> dict[str, object]:
+def _approval_view(store: SQLiteStore, approval) -> dict[str, object]:
     summary = _approval_summary(approval.action_json)
+    session = store.get_session(approval.session_id)
+    failure_reason = _approval_failure_reason(store, approval)
+    approval_state, execution_state, state_title = _approval_state_labels(approval.status)
     return {
         "id": approval.id,
+        "session_id": approval.session_id,
+        "session_task": redact_secrets(session.task),
+        "trace_url": f"/sessions/{approval.session_id}",
         "status": approval.status,
+        "state_title": state_title,
+        "approval_state": approval_state,
+        "execution_state": execution_state,
         "reason": approval.redacted_reason,
+        "display_reason": failure_reason or approval.redacted_reason,
         "action_json": approval.redacted_action_json,
         **summary,
     }
+
+
+def _approval_state_labels(status: str) -> tuple[str, str, str]:
+    if status == "pending":
+        return "pending", "not started", "Pending approval"
+    if status == "executing":
+        return "approved", "executing", "Executing"
+    if status == "failed":
+        return "approved", "failed", "Execution failed"
+    if status in {"executed", "approved"}:
+        return "approved", "completed", "Completed"
+    if status == "denied":
+        return "denied", "not run", "Completed"
+    return status, status, status.title()
+
+
+def _approval_failure_reason(store: SQLiteStore, approval) -> str | None:
+    if approval.status != "failed":
+        return None
+    for event in reversed(store.list_audit(approval.session_id)):
+        if event.event_type != "approval_manually_failed":
+            continue
+        if event.payload.get("approval_id") != approval.id:
+            continue
+        reason = event.payload.get("reason")
+        if isinstance(reason, str):
+            return str(redact_secrets(reason))
+    return None
 
 
 def _approval_summary(action_json: str) -> dict[str, str]:
     try:
         action = parse_action(action_json)
     except ValueError:
-        return {"tool": "unknown", "operation": "未知操作", "target": ""}
+        return {"tool": "unknown", "operation": "Unknown action", "target": "", "command": ""}
     if action.type is ActionType.WRITE_FILE:
         return {
             "tool": action.type.value,
-            "operation": "写入文件",
+            "operation": "Write file",
             "target": str(action.payload.get("path", "")),
+            "command": "",
         }
     if action.type is ActionType.READ_FILE:
         return {
             "tool": action.type.value,
-            "operation": "读取文件",
+            "operation": "Read file",
             "target": str(action.payload.get("path", "")),
+            "command": "",
         }
     if action.type is ActionType.RUN_TESTS:
-        return {"tool": action.type.value, "operation": "运行测试", "target": ""}
+        return {"tool": action.type.value, "operation": "Run tests", "target": "", "command": ""}
     if action.type is ActionType.RUN_SHELL:
         command = str(action.payload.get("command", ""))
         operation, target = _shell_operation_summary(command)
-        return {"tool": action.type.value, "operation": operation, "target": target}
-    return {"tool": action.type.value, "operation": action.type.value, "target": ""}
+        return {"tool": action.type.value, "operation": operation, "target": target, "command": command}
+    return {"tool": action.type.value, "operation": action.type.value, "target": "", "command": ""}
 
 
 def _shell_operation_summary(command: str) -> tuple[str, str]:
-    try:
-        tokens = command.split()
-    except ValueError:
-        return "执行 Shell 命令", ""
+    tokens = command.split()
     if len(tokens) >= 2 and tokens[0].lower() in {"rm", "del"}:
-        return "删除文件", tokens[-1]
+        return "Delete file", _strip_command_quotes(tokens[-1])
     if len(tokens) >= 2 and tokens[0].lower() in {"rd", "rmdir"}:
-        return "删除目录", tokens[-1]
-    return "执行 Shell 命令", command
+        return "Delete directory", _strip_command_quotes(tokens[-1])
+    return "Run shell command", command
+
+
+def _strip_command_quotes(value: str) -> str:
+    return value.strip().strip('"').strip("'")
 
 
 def _render_markdown(value: str) -> str:
@@ -374,7 +421,7 @@ def create_app(store_path: Path | None = None, workspace_root: Path | None = Non
             request,
             "index.html",
             {
-                "title": "对话工作区",
+                "title": "Chat Workspace",
                 "settings": settings,
                 "credential_configured": credential_configured,
                 "provider_status": _provider_status(settings, credential_configured),
@@ -391,7 +438,7 @@ def create_app(store_path: Path | None = None, workspace_root: Path | None = Non
             request,
             "settings.html",
             {
-                "title": "模型设置",
+                "title": "Provider Settings",
                 "settings": _load_provider_settings(root),
                 "credential_configured": _credential_store().status(),
                 "pending_approval_count": _pending_approval_count(store),
@@ -461,18 +508,26 @@ def create_app(store_path: Path | None = None, workspace_root: Path | None = Non
 
     @app.get("/approvals")
     def approvals(request: Request):
-        unfinished = store.list_unfinished_approvals()
+        approvals = [_approval_view(store, approval) for approval in store.list_approvals()]
         grouped = {
-            status: [_approval_view(approval) for approval in unfinished if approval.status == status]
-            for status in ("pending", "executing", "failed")
+            "pending": [approval for approval in approvals if approval["status"] == "pending"],
+            "executing": [approval for approval in approvals if approval["status"] == "executing"],
+            "completed": [
+                approval
+                for approval in approvals
+                if approval["status"] in {"approved", "denied", "executed"}
+            ],
+            "failed": [approval for approval in approvals if approval["status"] == "failed"],
         }
+        counts = {status: len(items) for status, items in grouped.items()}
         return _TEMPLATES.TemplateResponse(
             request,
             "approvals.html",
             {
-                "title": "审批",
-                "approvals": unfinished,
+                "title": "Approvals",
+                "approvals": approvals,
                 "approval_groups": grouped,
+                "approval_counts": counts,
                 "pending_approval_count": _pending_approval_count(store),
             },
         )

@@ -15,23 +15,24 @@ def test_index_loads_chat_workspace_without_guardrail_nav(tmp_path: Path):
     response = client.get("/")
 
     assert response.status_code == 200
-    assert "对话工作区" in response.text
-    assert "模型设置" in response.text
-    assert "审批" in response.text
+    assert '<html lang="en">' in response.text
+    assert "Chat Workspace" in response.text
+    assert "Provider Settings" in response.text
+    assert "Approvals" in response.text
     assert "Guardrail Demo" not in response.text
     assert "Change configuration" not in response.text
-    assert "最近会话" in response.text
-    assert "新建会话" in response.text
+    assert "Recent Sessions" in response.text
+    assert "New session" not in response.text
     assert 'class="app-layout"' in response.text
     assert 'class="session-sidebar"' in response.text
     assert "/guardrail" not in response.text
-    assert "模式：" in response.text
+    assert "mode:" in response.text
     assert "deepseek-v4-flash" in response.text
     assert 'name="api_key"' not in response.text
     assert "chat-page" in response.text
     assert "composer-status" in response.text
     assert "message-system" not in response.text
-    assert "模拟模式 · deepseek-v4-flash · 密钥未配置" in response.text
+    assert "mock · deepseek-v4-flash · key missing" in response.text
     assert "chat-scroll" not in response.text
     assert 'id="chat-scroll"' not in response.text
     assert "composer-fixed" in response.text
@@ -45,6 +46,7 @@ def test_index_loads_chat_workspace_without_guardrail_nav(tmp_path: Path):
     assert ">Start task<" not in response.text
     assert 'aria-label="Start task"' in response.text
     assert "↑" in response.text
+    assert response.text.index('placeholder="Message Guarded Harness..."') < response.text.index("mock · deepseek-v4-flash · key missing")
 
 
 def test_chat_workspace_css_uses_global_scroll_and_compact_composer():
@@ -59,9 +61,14 @@ def test_chat_workspace_css_uses_global_scroll_and_compact_composer():
     assert ".composer-fixed" in response.text
     assert ".composer-submit" in response.text
     assert ".composer-status" in response.text
+    assert "left: calc(50% + 136px)" in response.text
+    assert ".session-sidebar { position: sticky" in response.text
+    assert "overflow-y: auto" in response.text
+    assert "max-height: calc(100vh - 96px)" in response.text
+    assert ".sidebar-item { min-width: 0" in response.text
+    assert ".sidebar-item span, .sidebar-item small { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }" in response.text
     assert ".composer-sticky" not in response.text
     assert ".chat-scroll" not in response.text
-    assert "overflow-y: auto" not in response.text
 
 
 def test_index_lists_recent_sessions_as_conversation_items(tmp_path: Path):
@@ -75,19 +82,37 @@ def test_index_lists_recent_sessions_as_conversation_items(tmp_path: Path):
     response = client.get("/")
 
     assert response.status_code == 200
-    assert "对话工作区" in response.text
+    assert "Chat Workspace" in response.text
     assert "first task" in response.text
     assert "second task" in response.text
     assert "first done" in response.text
     assert "second done" in response.text
-    assert response.text.index("first task") < response.text.index("second task")
+    assert response.text.index("second task") < response.text.index("first task")
     assert response.text.count('class="message message-user"') == 2
     assert response.text.count('class="message message-agent"') == 2
     assert "<strong>You</strong>" not in response.text
     assert "<strong>Harness</strong>" not in response.text
-    assert "运行中" in response.text
-    assert "0 步" in response.text
+    assert "running" in response.text
+    assert "0 steps" in response.text
     assert response.text.count('class="muted-link"') == 2
+
+
+def test_sidebar_uses_latest_first_and_singular_step_label(tmp_path: Path):
+    store = SQLiteStore(tmp_path / "state.sqlite3", workspace_root=tmp_path)
+    older = store.create_session("older one-step task", tmp_path)
+    older.step_count = 1
+    store.update_session(older)
+    newer = store.create_session("newer two-step task", tmp_path)
+    newer.step_count = 2
+    store.update_session(newer)
+    client = TestClient(create_app(store.db_path, workspace_root=tmp_path))
+
+    response = client.get("/")
+
+    assert response.status_code == 200
+    assert response.text.index("newer two-step task") < response.text.index("older one-step task")
+    assert "finished · 1 step" in response.text or "running · 1 step" in response.text
+    assert "running · 2 steps" in response.text
 
 
 def test_sidebar_groups_recent_sessions_and_session_page_marks_current(tmp_path: Path):
@@ -99,7 +124,7 @@ def test_sidebar_groups_recent_sessions_and_session_page_marks_current(tmp_path:
     session_response = client.get(f"/sessions/{session.id}")
 
     assert index_response.status_code == 200
-    assert "今天" in index_response.text
+    assert "Today" in index_response.text
     assert 'class="sidebar-group"' in index_response.text
     assert session_response.status_code == 200
     assert 'class="sidebar-item active"' in session_response.text
@@ -181,10 +206,10 @@ def test_waiting_approval_session_shows_approval_card_in_chat(tmp_path: Path):
 
     assert response.status_code == 200
     assert 'class="approval-card"' in response.text
-    assert "需要审批" in response.text
-    assert "工具：write_file" in response.text
-    assert "操作：写入文件" in response.text
-    assert "目标：.env" in response.text
+    assert "Approval required" in response.text
+    assert "Tool: write_file" in response.text
+    assert "Action: Write file" in response.text
+    assert "Target: .env" in response.text
     assert "modifying an environment file requires approval" in response.text
     assert waiting.pending_approval_id in response.text
 
@@ -202,9 +227,9 @@ def test_run_shell_approval_card_uses_real_tool_summary(tmp_path: Path):
     response = client.get("/")
 
     assert response.status_code == 200
-    assert "工具：run_shell" in response.text
-    assert "操作：删除文件" in response.text
-    assert "目标：build/output.txt" in response.text
+    assert "Tool: run_shell" in response.text
+    assert "Action: Delete file" in response.text
+    assert "Target: build/output.txt" in response.text
 
 
 def test_provider_settings_page_loads_defaults(tmp_path: Path, monkeypatch):
@@ -214,10 +239,10 @@ def test_provider_settings_page_loads_defaults(tmp_path: Path, monkeypatch):
     response = client.get("/settings")
 
     assert response.status_code == 200
-    assert "模型设置" in response.text
+    assert "Provider Settings" in response.text
     assert "https://njusehub.info/v1" in response.text
     assert "deepseek-v4-flash" in response.text
-    assert "密钥未配置" in response.text
+    assert "key missing" in response.text
 
 
 def test_primary_navigation_omits_guardrail_link_but_direct_page_loads(tmp_path: Path, monkeypatch):
@@ -255,9 +280,9 @@ def test_provider_settings_save_updates_dashboard_without_persisting_key(tmp_pat
     )
 
     assert response.status_code == 200
-    assert "实时模式" in response.text
+    assert "live" in response.text
     assert "qwen-turbo" in response.text
-    assert "密钥已配置" in response.text
+    assert "key configured" in response.text
     assert credentials.key == "settings-secret"
     assert "settings-secret" not in response.text
     assert "settings-secret" not in (tmp_path / ".guarded-harness" / "provider.json").read_text()
@@ -269,10 +294,10 @@ def test_starting_task_returns_to_workspace_with_saved_conversation(tmp_path: Pa
     response = client.post("/sessions", data={"task": "inspect the repository"}, follow_redirects=True)
 
     assert response.status_code == 200
-    assert "对话工作区" in response.text
+    assert "Chat Workspace" in response.text
     assert "inspect the repository" in response.text
     assert "mock run completed" in response.text
-    assert "查看轨迹" in response.text
+    assert "View trace" in response.text
     assert "session_started" not in response.text
 
 
@@ -298,7 +323,7 @@ def test_starting_task_uses_saved_live_settings_without_retyping_key(tmp_path: P
     response = client.post("/sessions", data={"task": "use saved provider"}, follow_redirects=True)
 
     assert response.status_code == 200
-    assert "对话工作区" in response.text
+    assert "Chat Workspace" in response.text
     assert "live done" in response.text
     assert captured == {
         "base_url": "https://njusehub.info/v1",
@@ -387,7 +412,7 @@ def test_web_live_mode_uses_submitted_provider_config_without_persisting_key(tmp
     )
 
     assert response.status_code == 200
-    assert "对话工作区" in response.text
+    assert "Chat Workspace" in response.text
     assert "2" in response.text
     assert captured == {
         "base_url": "https://njusehub.info/v1",
@@ -422,17 +447,52 @@ def test_web_live_mode_can_save_submitted_key_to_keyring(tmp_path: Path, monkeyp
     assert credentials.key == "stored-secret"
 
 
-def test_approvals_page_loads():
-    client = TestClient(create_app())
+def test_approvals_page_loads(tmp_path: Path):
+    client = TestClient(create_app(tmp_path / "state.sqlite3", workspace_root=tmp_path))
 
     response = client.get("/approvals")
 
     assert response.status_code == 200
-    assert "审批" in response.text
-    assert "[pending]" in response.text
-    assert "[executing]" in response.text
-    assert "[failed]" in response.text
-    assert 'class="queue-grid"' in response.text
+    assert "Approvals" in response.text
+    assert "Pending 0" in response.text
+    assert "Actions that need human confirmation for high-risk operations." in response.text
+    assert 'class="approval-tabs"' in response.text
+    assert "[Pending 0]" in response.text
+    assert "[Executing 0]" in response.text
+    assert "[Completed 0]" in response.text
+    assert "[Failed 0]" in response.text
+    assert 'class="approval-board"' in response.text
+    assert 'class="queue-grid"' not in response.text
+
+
+def test_approvals_page_shows_failed_operation_summary_and_actions(tmp_path: Path):
+    store = SQLiteStore(tmp_path / "state.sqlite3", workspace_root=tmp_path)
+    session = store.create_session("delete test.md", tmp_path)
+    approval = store.create_approval_and_pause_session(
+        session,
+        '{"type":"run_shell","command":"del D:\\\\code\\\\Harness\\\\Harness\\\\.worktrees\\\\guarded-harness-impl\\\\test.md"}',
+        "shell command requires approval",
+    )
+    store.begin_approval_resolution(approval.id, approved=True)
+    store.mark_approval_failed(approval.id, "del is a cmd built-in command and cannot be run directly by this executor")
+    client = TestClient(create_app(store.db_path, workspace_root=tmp_path))
+
+    response = client.get("/approvals")
+
+    assert response.status_code == 200
+    assert "Failed 1" in response.text
+    assert "Execution failed" in response.text
+    assert "Delete file" in response.text
+    assert "Task: delete test.md" in response.text
+    assert "Tool: run_shell" in response.text
+    assert "Target: D:\\code\\Harness\\Harness\\.worktrees\\guarded-harness-impl\\test.md" in response.text
+    assert "Approval: approved" in response.text
+    assert "Execution: failed" in response.text
+    assert "Reason: del is a cmd built-in command and cannot be run directly by this executor" in response.text
+    assert "View task" in response.text
+    assert "View trace" in response.text
+    assert "Technical details" in response.text
+    assert "Copy command" in response.text
 
 
 def test_guardrail_demo_page_evaluates_sample_actions(tmp_path: Path):

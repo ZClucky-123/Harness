@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -11,48 +11,74 @@
     <header class="site-header">
       <a class="brand" href="/">Guarded Harness</a>
       <nav class="nav-links">
-        <a href="/">对话</a>
-        <a href="/settings">模型设置</a>
-        <a class="active" href="/approvals">审批{% if pending_approval_count %}<span class="nav-count">{{ pending_approval_count }}</span>{% endif %}</a>
+        <a href="/">Chat</a>
+        <a href="/settings">Provider Settings</a>
+        <a class="active" href="/approvals">Approvals{% if pending_approval_count %}<span class="nav-count">{{ pending_approval_count }}</span>{% endif %}</a>
       </nav>
     </header>
-    <section class="hero">
-      <h1>审批</h1>
-      <p>需要人工确认的操作会在执行前暂停到这里。</p>
-    </section>
-    <section class="queue-grid">
-    {% for status, items in approval_groups.items() %}
-      <div class="queue-card">
-        <h2>[{{ status }}]</h2>
+
+    <section class="approval-board">
+      <header class="approval-board-header">
+        <div>
+          <h1>Approvals</h1>
+          <p>Actions that need human confirmation for high-risk operations.</p>
+        </div>
+        <strong>Pending {{ approval_counts.pending }}</strong>
+      </header>
+
+      <nav class="approval-tabs" aria-label="Approval queues">
+        <span>[Pending {{ approval_counts.pending }}]</span>
+        <span>[Executing {{ approval_counts.executing }}]</span>
+        <span>[Completed {{ approval_counts.completed }}]</span>
+        <span>[Failed {{ approval_counts.failed }}]</span>
+      </nav>
+
+      {% for status, items in approval_groups.items() %}
         {% if items %}
-        <ul class="approvals">
-        {% for approval in items %}
-          <li>
-            <p><span class="status-badge">[{{ approval.status }}]</span> {{ approval.reason }}</p>
-            <p>工具：{{ approval.tool }}</p>
-            <p>操作：{{ approval.operation }}</p>
-            {% if approval.target %}<p>目标：{{ approval.target }}</p>{% endif %}
-            <pre>{{ approval.action_json }}</pre>
-            {% if approval.status == "pending" %}
-            <form action="/approvals/{{ approval.id }}/approve" method="post"><button type="submit">批准本次</button></form>
-            <form action="/approvals/{{ approval.id }}/deny" method="post"><button class="deny" type="submit">拒绝</button></form>
-            {% elif approval.status == "executing" %}
-            <p>操作已进入执行中。如果确认 worker 不再运行，可以标记为失败。</p>
-            <form action="/approvals/{{ approval.id }}/mark-failed" method="post">
-              <label>原因 <input name="reason" required></label>
-              <button class="deny" type="submit">标记失败</button>
-            </form>
-            {% else %}
-            <p>该审批已标记失败，不会自动重放。</p>
-            {% endif %}
-          </li>
-        {% endfor %}
-        </ul>
-        {% else %}
-        <p>暂无</p>
+          <section class="approval-section">
+            <h2>{{ status | title }}</h2>
+            {% for approval in items %}
+              <article class="approval-item approval-item-{{ status }}">
+                <h3>{{ approval.state_title }}</h3>
+                <h4>{{ approval.operation }}</h4>
+                <p>Task: {{ approval.session_task }}</p>
+                <p>Tool: {{ approval.tool }}</p>
+                {% if approval.target %}<p>Target: {{ approval.target }}</p>{% endif %}
+                <p>Approval: {{ approval.approval_state }} &nbsp;&nbsp; Execution: {{ approval.execution_state }}</p>
+                <p>Reason: {{ approval.display_reason }}</p>
+
+                {% if approval.status == "pending" %}
+                  <div class="approval-actions">
+                    <form action="/approvals/{{ approval.id }}/approve" method="post"><button type="submit">Approve once</button></form>
+                    <form action="/approvals/{{ approval.id }}/deny" method="post"><button class="deny" type="submit">Deny</button></form>
+                  </div>
+                {% elif approval.status == "executing" %}
+                  <form action="/approvals/{{ approval.id }}/mark-failed" method="post">
+                    <label>Reason <input name="reason" required></label>
+                    <button class="deny" type="submit">Mark failed</button>
+                  </form>
+                {% endif %}
+
+                <div class="approval-links">
+                  <a class="button-secondary" href="{{ approval.trace_url }}">View task</a>
+                  <a class="button-secondary" href="{{ approval.trace_url }}">View trace</a>
+                  <details>
+                    <summary>Technical details</summary>
+                    <pre>{{ approval.action_json }}</pre>
+                  </details>
+                  {% if approval.command %}
+                    <button class="button-secondary" type="button" data-copy="{{ approval.command }}">Copy command</button>
+                  {% endif %}
+                </div>
+              </article>
+            {% endfor %}
+          </section>
         {% endif %}
-      </div>
-    {% endfor %}
+      {% endfor %}
+
+      {% if not approvals %}
+        <p class="empty-state">No approval records yet.</p>
+      {% endif %}
     </section>
   </main>
 </body>

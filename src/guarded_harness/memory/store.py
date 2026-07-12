@@ -387,6 +387,22 @@ class SQLiteStore:
             for row in rows
         ]
 
+    def list_approvals(self) -> list[ApprovalRequest]:
+        with self._connect() as db:
+            rows = db.execute("SELECT * FROM approvals ORDER BY created_at DESC").fetchall()
+        return [
+            ApprovalRequest(
+                row["id"],
+                row["session_id"],
+                row["action_json"],
+                row["reason"],
+                row["status"],
+                datetime.fromisoformat(row["created_at"]),
+                datetime.fromisoformat(row["resolved_at"]) if row["resolved_at"] else None,
+            )
+            for row in rows
+        ]
+
     def add_memory(self, kind: str, content: str, tags: list[str]) -> MemoryEntry:
         reject_secrets(kind, "memory kind")
         reject_secrets(content, "memory content")

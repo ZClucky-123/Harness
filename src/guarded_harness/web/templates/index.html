@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -11,15 +11,14 @@
     <header class="site-header">
       <a class="brand" href="/">Guarded Harness</a>
       <nav class="nav-links">
-        <a class="active" href="/">对话</a>
-        <a href="/settings">模型设置</a>
-        <a href="/approvals">审批{% if pending_approval_count %}<span class="nav-count">{{ pending_approval_count }}</span>{% endif %}</a>
+        <a class="active" href="/">Chat</a>
+        <a href="/settings">Provider Settings</a>
+        <a href="/approvals">Approvals{% if pending_approval_count %}<span class="nav-count">{{ pending_approval_count }}</span>{% endif %}</a>
       </nav>
     </header>
 
     <div class="app-layout">
       <aside class="session-sidebar">
-        <a class="new-session" href="#task">+ 新建会话</a>
         {% for group in sidebar_groups %}
           <section class="sidebar-group">
             <h2>{{ group.label }}</h2>
@@ -27,24 +26,24 @@
               {% for item in group.sessions %}
                 <a class="sidebar-item{% if item.active %} active{% endif %}" href="{{ item.trace_url }}">
                   <span>{{ item.task }}</span>
-                  <small>{{ item.status_label }} · {{ item.step_count }} 步</small>
+                  <small>{{ item.status_label }} · {{ item.step_label }}</small>
                 </a>
               {% endfor %}
             </nav>
           </section>
-          {% else %}
-            <p class="empty-state">暂无会话</p>
-          {% endfor %}
+        {% else %}
+          <p class="empty-state">No sessions yet.</p>
+        {% endfor %}
       </aside>
 
       <section class="chat-main">
         <section class="hero chat-intro">
-          <h1>对话工作区</h1>
-          <p>带治理护栏、人工审批和 Provider 适配的本地编码 Agent。</p>
+          <h1>Chat Workspace</h1>
+          <p>Governed local coding-agent runs with provider adapters and human approval.</p>
         </section>
 
         <section class="chat-panel">
-          <h2>最近会话</h2>
+          <h2>Recent Sessions</h2>
           <div class="conversation-list">
             {% for item in conversation_items %}
               <article class="conversation-item">
@@ -53,26 +52,26 @@
                 </div>
                 <div class="message message-agent">
                   <div class="markdown-body">{{ item.summary | markdown }}</div>
-                  <p class="run-status">{{ item.status_label }} · {{ item.step_count }} 步</p>
+                  <p class="run-status">{{ item.status_label }} · {{ item.step_label }}</p>
                   {% if item.approval %}
                     <div class="approval-card">
-                      <h3>需要审批</h3>
-                      <p>工具：{{ item.approval.tool }}</p>
-                      <p>操作：{{ item.approval.operation }}</p>
-                      {% if item.approval.target %}<p>目标：{{ item.approval.target }}</p>{% endif %}
-                      <p>风险：{{ item.approval.reason }}</p>
+                      <h3>Approval required</h3>
+                      <p>Tool: {{ item.approval.tool }}</p>
+                      <p>Action: {{ item.approval.operation }}</p>
+                      {% if item.approval.target %}<p>Target: {{ item.approval.target }}</p>{% endif %}
+                      <p>Risk: {{ item.approval.reason }}</p>
                       <pre>{{ item.approval.action_json }}</pre>
                       <div class="approval-actions">
-                        <form action="/approvals/{{ item.approval.id }}/approve" method="post"><button type="submit">批准本次</button></form>
-                        <form action="/approvals/{{ item.approval.id }}/deny" method="post"><button class="deny" type="submit">拒绝</button></form>
+                        <form action="/approvals/{{ item.approval.id }}/approve" method="post"><button type="submit">Approve once</button></form>
+                        <form action="/approvals/{{ item.approval.id }}/deny" method="post"><button class="deny" type="submit">Deny</button></form>
                       </div>
                     </div>
                   {% endif %}
-                  <a class="muted-link" href="{{ item.trace_url }}">查看轨迹</a>
+                  <a class="muted-link" href="{{ item.trace_url }}">View trace</a>
                 </div>
               </article>
             {% else %}
-              <p class="empty-state">在下方输入任务开始新的会话。</p>
+              <p class="empty-state">Send a task below to start a new session.</p>
             {% endfor %}
           </div>
         </section>
@@ -81,11 +80,11 @@
 
     <form class="composer composer-fixed" action="/sessions" method="post">
       <fieldset>
-        <div class="composer-status">模式：{{ provider_status }}</div>
         <div class="composer-row">
-          <textarea id="task" name="task" rows="1" placeholder="向 Guarded Harness 发送消息" aria-label="Task" required></textarea>
+          <textarea id="task" name="task" rows="1" placeholder="Message Guarded Harness..." aria-label="Task" required></textarea>
           <button class="composer-submit" type="submit" aria-label="Start task">↑</button>
         </div>
+        <div class="composer-status">mode: {{ provider_status }}</div>
       </fieldset>
     </form>
   </main>
