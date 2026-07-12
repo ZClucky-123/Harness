@@ -66,7 +66,7 @@ def test_chat_workspace_css_uses_global_scroll_and_compact_composer():
     assert ".composer-status" in response.text
     assert "--sidebar-width: 320px" in response.text
     assert "--content-width: 860px" in response.text
-    assert ".chat-page { min-height: 100vh; padding: 56px 32px 150px var(--sidebar-width); }" in response.text
+    assert ".chat-page { min-height: 100vh; padding: 56px 32px 100px var(--sidebar-width); }" in response.text
     assert ".chat-main { width: min(var(--content-width), 100%); margin: 0 auto; min-width: 0; }" in response.text
     assert ".composer-fixed { position: fixed; left: calc(var(--sidebar-width) + (100vw - var(--sidebar-width) - 32px) / 2); bottom: 16px; z-index: 20; width: min(var(--content-width), calc(100vw - var(--sidebar-width) - 32px));" in response.text
     assert ".session-sidebar { position: fixed; left: 0; top: 0; width: var(--sidebar-width); height: 100vh; box-sizing: border-box; border-right: 1px solid #e5e5e5; background: #fff; }" in response.text

@@ -205,3 +205,16 @@
   - "Technical details" → "Details", removed redundant approval/execution state lines.
   - Cleaned up CSS: removed `.approval-board`, `.approval-board-header`, `.approval-tabs`, `.approval-section` styles.
 - **Files changed:** `src/guarded_harness/web/templates/approvals.html`, `src/guarded_harness/web/static/styles.css`, `tests/integration/test_web.py`.
+
+## 2026-07-13 - Fix: message bubble and textarea spacing
+
+- **Superpowers skills:** `brainstorming`, `test-driven-development`, `verification-before-completion`.
+- **Trigger:** User requested tighter spacing in chat messages and input area.
+- **Fixes:**
+  - `.message` padding `12px 16px → 6px 14px`
+  - `.composer-row textarea` padding `8px 14px → 4px 14px`
+  - `textarea` min-height `44px → 36px`
+  - `.composer-status` margin `1px → 0`
+  - `.chat-page` bottom padding `150px → 100px`
+  - Added `.composer-backdrop` (fixed white block, z-index 19) behind composer
+- **Files changed:** `src/guarded_harness/web/static/styles.css`, `src/guarded_harness/web/templates/index.html`, `tests/integration/test_web.py`.

@@ -8,7 +8,7 @@
 
 body { margin: 0; background: #fff; }
 .shell { max-width: 760px; margin: 0 auto; padding: 24px; }
-.chat-page { min-height: 100vh; padding: 56px 32px 150px var(--sidebar-width); }
+.chat-page { min-height: 100vh; padding: 56px 32px 100px var(--sidebar-width); }
 .shell.wide { max-width: 1040px; }
 .site-header { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; justify-content: flex-end; gap: 16px; min-height: 56px; background: rgba(255,255,255,0.96); backdrop-filter: blur(12px); }
 .chat-page .site-header { position: fixed; left: var(--sidebar-width); right: 0; padding-right: 32px; }
@@ -60,6 +60,7 @@ p { color: #737373; line-height: 1.5; }
 .composer-row textarea { border: 0; outline: 0; padding: 4px 14px; overflow-y: hidden; }
 .composer-row textarea:focus { box-shadow: none; }
 .composer-submit { width: 28px; height: 28px; padding: 0; border-radius: 9999px; line-height: 1; }
+.composer-backdrop { position: fixed; left: calc(var(--sidebar-width) + (100vw - var(--sidebar-width) - 32px) / 2); bottom: 0; z-index: 19; width: min(var(--content-width), calc(100vw - var(--sidebar-width) - 32px)); transform: translateX(-50%); height: 80px; background: #fff; }
 .run-status, .empty-state { color: #737373; font-size: 14px; }
 .approval-card { margin: 12px 0; padding: 12px; border: 1px solid #facc15; border-radius: 12px; background: #fffbeb; }
 .approval-card h3 { margin: 0 0 8px; font-size: 16px; }
