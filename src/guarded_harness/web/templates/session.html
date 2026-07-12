@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="{{ url_for('static', path='styles.css') }}">
 </head>
 <body>
-  <main class="shell">
+  <main class="chat-page">
     <header class="site-header">
       <a class="brand" href="/">Guarded Harness</a>
       <nav class="nav-links">
@@ -16,27 +16,47 @@
         <a href="/approvals">审批{% if pending_approval_count %}<span class="nav-count">{{ pending_approval_count }}</span>{% endif %}</a>
       </nav>
     </header>
-    <section class="hero">
-      <h1>会话轨迹</h1>
-      <p>{{ display_task }}</p>
-    </section>
-    <dl class="meta-grid panel">
-      <dt>任务</dt><dd>{{ display_task }}</dd>
-      <dt>状态</dt><dd><span class="status-badge">[{{ status_label }}]</span></dd>
-      <dt>步数</dt><dd>{{ session.step_count }}</dd>
-    </dl>
-    <section class="terminal-card panel">
-      <div class="traffic-lights"><span></span><span></span><span></span></div>
-      <h2>轨迹</h2>
-      <ol class="trace">
-      {% for event in events %}
-        <li>
-          <div class="event-title">{{ loop.index }}. {{ event.event_type }}</div>
-          <pre>{{ event.payload | pretty_json }}</pre>
-        </li>
-      {% endfor %}
-      </ol>
-    </section>
+    <div class="app-layout">
+      <aside class="session-sidebar">
+        <a class="new-session" href="/">+ 新建会话</a>
+        {% for group in sidebar_groups %}
+          <section class="sidebar-group">
+            <h2>{{ group.label }}</h2>
+            <nav class="sidebar-list">
+              {% for item in group.sessions %}
+                <a class="sidebar-item{% if item.active %} active{% endif %}" href="{{ item.trace_url }}">
+                  <span>{{ item.task }}</span>
+                  <small>{{ item.status_label }} · {{ item.step_count }} 步</small>
+                </a>
+              {% endfor %}
+            </nav>
+          </section>
+        {% endfor %}
+      </aside>
+      <section class="chat-main">
+        <section class="hero">
+          <h1>会话轨迹</h1>
+          <p>{{ display_task }}</p>
+        </section>
+        <dl class="meta-grid panel">
+          <dt>任务</dt><dd>{{ display_task }}</dd>
+          <dt>状态</dt><dd><span class="status-badge">[{{ status_label }}]</span></dd>
+          <dt>步数</dt><dd>{{ session.step_count }}</dd>
+        </dl>
+        <section class="terminal-card panel">
+          <div class="traffic-lights"><span></span><span></span><span></span></div>
+          <h2>轨迹</h2>
+          <ol class="trace">
+          {% for event in events %}
+            <li>
+              <div class="event-title">{{ loop.index }}. {{ event.event_type }}</div>
+              <pre>{{ event.payload | pretty_json }}</pre>
+            </li>
+          {% endfor %}
+          </ol>
+        </section>
+      </section>
+    </div>
   </main>
 </body>
 </html>

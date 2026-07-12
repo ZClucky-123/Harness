@@ -90,6 +90,22 @@ def test_index_lists_recent_sessions_as_conversation_items(tmp_path: Path):
     assert response.text.count('class="muted-link"') == 2
 
 
+def test_sidebar_groups_recent_sessions_and_session_page_marks_current(tmp_path: Path):
+    store = SQLiteStore(tmp_path / "state.sqlite3", workspace_root=tmp_path)
+    session = store.create_session("current task", tmp_path)
+    client = TestClient(create_app(store.db_path, workspace_root=tmp_path))
+
+    index_response = client.get("/")
+    session_response = client.get(f"/sessions/{session.id}")
+
+    assert index_response.status_code == 200
+    assert "今天" in index_response.text
+    assert 'class="sidebar-group"' in index_response.text
+    assert session_response.status_code == 200
+    assert 'class="sidebar-item active"' in session_response.text
+    assert "current task" in session_response.text
+
+
 def test_index_redacts_recent_session_summary_secrets(tmp_path: Path):
     store = SQLiteStore(tmp_path / "state.sqlite3", workspace_root=tmp_path)
     session = store.create_session("finished task", tmp_path)
@@ -166,8 +182,29 @@ def test_waiting_approval_session_shows_approval_card_in_chat(tmp_path: Path):
     assert response.status_code == 200
     assert 'class="approval-card"' in response.text
     assert "需要审批" in response.text
+    assert "工具：write_file" in response.text
+    assert "操作：写入文件" in response.text
+    assert "目标：.env" in response.text
     assert "modifying an environment file requires approval" in response.text
     assert waiting.pending_approval_id in response.text
+
+
+def test_run_shell_approval_card_uses_real_tool_summary(tmp_path: Path):
+    store = SQLiteStore(tmp_path / "state.sqlite3", workspace_root=tmp_path)
+    session = store.create_session("remove generated file", tmp_path)
+    store.create_approval_and_pause_session(
+        session,
+        '{"type":"run_shell","command":"rm build/output.txt"}',
+        "shell command requires approval",
+    )
+    client = TestClient(create_app(store.db_path, workspace_root=tmp_path))
+
+    response = client.get("/")
+
+    assert response.status_code == 200
+    assert "工具：run_shell" in response.text
+    assert "操作：删除文件" in response.text
+    assert "目标：build/output.txt" in response.text
 
 
 def test_provider_settings_page_loads_defaults(tmp_path: Path, monkeypatch):

@@ -28,8 +28,11 @@
         <ul class="approvals">
         {% for approval in items %}
           <li>
-            <p><span class="status-badge">[{{ approval.status }}]</span> {{ approval.redacted_reason }}</p>
-            <pre>{{ approval.redacted_action_json }}</pre>
+            <p><span class="status-badge">[{{ approval.status }}]</span> {{ approval.reason }}</p>
+            <p>工具：{{ approval.tool }}</p>
+            <p>操作：{{ approval.operation }}</p>
+            {% if approval.target %}<p>目标：{{ approval.target }}</p>{% endif %}
+            <pre>{{ approval.action_json }}</pre>
             {% if approval.status == "pending" %}
             <form action="/approvals/{{ approval.id }}/approve" method="post"><button type="submit">批准本次</button></form>
             <form action="/approvals/{{ approval.id }}/deny" method="post"><button class="deny" type="submit">拒绝</button></form>

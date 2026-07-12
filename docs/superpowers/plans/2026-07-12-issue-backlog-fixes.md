@@ -14,9 +14,11 @@
 - [x] Update WebUI templates and CSS for Chinese labels, sidebar layout, pending approval counts, safe Markdown, and chat approval cards.
 - [x] Address review feedback for live approval resume with unsaved in-process API keys.
 - [x] Extend safe Markdown rendering for headings, blockquotes, links, code blocks, and simple tables.
+- [x] Add sidebar session grouping and active session highlighting.
+- [x] Add structured approval summaries for tool, operation, and target.
 - [x] Run full project verification.
 - [ ] Commit the batch.
 
 ## Remaining Known Gaps
 
-This batch improves the broad WebUI and backend defects. Remaining polish: the session sidebar still uses a simple recent-session list rather than full today/yesterday grouping, and approval cards show real action JSON/reason but do not yet include richer parsed target/resource summaries.
+This batch improves the broad WebUI and backend defects. The sidebar now exposes grouped sessions with active-session state, and approval cards show real tool, operation, target, reason, and action JSON. Future polish could split groups beyond today's local sessions when older fixture data is present.

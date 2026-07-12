@@ -20,17 +20,21 @@
     <div class="app-layout">
       <aside class="session-sidebar">
         <a class="new-session" href="#task">+ 新建会话</a>
-        <h2>最近会话</h2>
-        <nav class="sidebar-list">
-          {% for item in sidebar_items %}
-            <a class="sidebar-item" href="{{ item.trace_url }}">
-              <span>{{ item.task }}</span>
-              <small>{{ item.status_label }} · {{ item.step_count }} 步</small>
-            </a>
+        {% for group in sidebar_groups %}
+          <section class="sidebar-group">
+            <h2>{{ group.label }}</h2>
+            <nav class="sidebar-list">
+              {% for item in group.sessions %}
+                <a class="sidebar-item{% if item.active %} active{% endif %}" href="{{ item.trace_url }}">
+                  <span>{{ item.task }}</span>
+                  <small>{{ item.status_label }} · {{ item.step_count }} 步</small>
+                </a>
+              {% endfor %}
+            </nav>
+          </section>
           {% else %}
             <p class="empty-state">暂无会话</p>
           {% endfor %}
-        </nav>
       </aside>
 
       <section class="chat-main">
@@ -53,6 +57,9 @@
                   {% if item.approval %}
                     <div class="approval-card">
                       <h3>需要审批</h3>
+                      <p>工具：{{ item.approval.tool }}</p>
+                      <p>操作：{{ item.approval.operation }}</p>
+                      {% if item.approval.target %}<p>目标：{{ item.approval.target }}</p>{% endif %}
                       <p>风险：{{ item.approval.reason }}</p>
                       <pre>{{ item.approval.action_json }}</pre>
                       <div class="approval-actions">

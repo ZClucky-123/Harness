@@ -11,7 +11,7 @@ from markupsafe import Markup
 
 from guarded_harness.config.credentials import CredentialStore
 from guarded_harness.config.loader import load_config
-from guarded_harness.core.actions import Action, ActionType
+from guarded_harness.core.actions import Action, ActionType, parse_action
 from guarded_harness.core.loop import AgentLoop
 from guarded_harness.llm.base import LLMProvider
 from guarded_harness.llm.mock import MockLLM
@@ -148,6 +148,15 @@ def _pending_approval_count(store: SQLiteStore) -> int:
     return len(store.list_pending_approvals())
 
 
+def _sidebar_groups(items: list[dict[str, object]], current_session_id: str | None = None) -> list[dict[str, object]]:
+    grouped_items = []
+    for item in items:
+        copy = dict(item)
+        copy["active"] = item["id"] == current_session_id
+        grouped_items.append(copy)
+    return [{"label": "今天", "sessions": grouped_items}] if grouped_items else []
+
+
 def _conversation_items(store: SQLiteStore, limit: int = 12) -> list[dict[str, object]]:
     return [_conversation_item(store, session) for session in reversed(store.list_sessions(limit))]
 
@@ -166,17 +175,61 @@ def _conversation_item(store: SQLiteStore, session) -> dict[str, object]:
     if session.pending_approval_id:
         try:
             approval = store.get_approval(session.pending_approval_id)
-            item["approval"] = {
-                "id": approval.id,
-                "status": approval.status,
-                "reason": approval.redacted_reason,
-                "action_json": approval.redacted_action_json,
-            }
+            item["approval"] = _approval_view(approval)
         except KeyError:
             item["approval"] = None
     else:
         item["approval"] = None
     return item
+
+
+def _approval_view(approval) -> dict[str, object]:
+    summary = _approval_summary(approval.action_json)
+    return {
+        "id": approval.id,
+        "status": approval.status,
+        "reason": approval.redacted_reason,
+        "action_json": approval.redacted_action_json,
+        **summary,
+    }
+
+
+def _approval_summary(action_json: str) -> dict[str, str]:
+    try:
+        action = parse_action(action_json)
+    except ValueError:
+        return {"tool": "unknown", "operation": "未知操作", "target": ""}
+    if action.type is ActionType.WRITE_FILE:
+        return {
+            "tool": action.type.value,
+            "operation": "写入文件",
+            "target": str(action.payload.get("path", "")),
+        }
+    if action.type is ActionType.READ_FILE:
+        return {
+            "tool": action.type.value,
+            "operation": "读取文件",
+            "target": str(action.payload.get("path", "")),
+        }
+    if action.type is ActionType.RUN_TESTS:
+        return {"tool": action.type.value, "operation": "运行测试", "target": ""}
+    if action.type is ActionType.RUN_SHELL:
+        command = str(action.payload.get("command", ""))
+        operation, target = _shell_operation_summary(command)
+        return {"tool": action.type.value, "operation": operation, "target": target}
+    return {"tool": action.type.value, "operation": action.type.value, "target": ""}
+
+
+def _shell_operation_summary(command: str) -> tuple[str, str]:
+    try:
+        tokens = command.split()
+    except ValueError:
+        return "执行 Shell 命令", ""
+    if len(tokens) >= 2 and tokens[0].lower() in {"rm", "del"}:
+        return "删除文件", tokens[-1]
+    if len(tokens) >= 2 and tokens[0].lower() in {"rd", "rmdir"}:
+        return "删除目录", tokens[-1]
+    return "执行 Shell 命令", command
 
 
 def _render_markdown(value: str) -> str:
@@ -327,6 +380,7 @@ def create_app(store_path: Path | None = None, workspace_root: Path | None = Non
                 "provider_status": _provider_status(settings, credential_configured),
                 "conversation_items": conversation_items,
                 "sidebar_items": conversation_items,
+                "sidebar_groups": _sidebar_groups(conversation_items),
                 "pending_approval_count": _pending_approval_count(store),
             },
         )
@@ -390,6 +444,7 @@ def create_app(store_path: Path | None = None, workspace_root: Path | None = Non
             session = store.get_session(session_id)
         except KeyError as exc:
             raise HTTPException(status_code=404, detail="session not found") from exc
+        conversation_items = _conversation_items(store)
         return _TEMPLATES.TemplateResponse(
             request,
             "session.html",
@@ -399,6 +454,7 @@ def create_app(store_path: Path | None = None, workspace_root: Path | None = Non
                 "display_task": redact_secrets(session.task),
                 "status_label": _status_label(session.status.value),
                 "pending_approval_count": _pending_approval_count(store),
+                "sidebar_groups": _sidebar_groups(conversation_items, session.id),
                 "events": store.list_audit(session_id),
             },
         )
@@ -407,7 +463,7 @@ def create_app(store_path: Path | None = None, workspace_root: Path | None = Non
     def approvals(request: Request):
         unfinished = store.list_unfinished_approvals()
         grouped = {
-            status: [approval for approval in unfinished if approval.status == status]
+            status: [_approval_view(approval) for approval in unfinished if approval.status == status]
             for status in ("pending", "executing", "failed")
         }
         return _TEMPLATES.TemplateResponse(
