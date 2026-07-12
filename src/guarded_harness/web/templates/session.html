@@ -9,7 +9,6 @@
 <body>
   <main class="chat-page">
     <header class="site-header">
-      <a class="brand" href="/">Guarded Harness</a>
       <nav class="nav-links">
         <a href="/">Chat</a>
         <a href="/settings">Provider Settings</a>
@@ -18,19 +17,22 @@
     </header>
     <div class="app-layout">
       <aside class="session-sidebar">
-        {% for group in sidebar_groups %}
-          <section class="sidebar-group">
-            <h2>{{ group.label }}</h2>
-            <nav class="sidebar-list">
-              {% for item in group.sessions %}
-                <a class="sidebar-item{% if item.active %} active{% endif %}" href="{{ item.trace_url }}">
-                  <span>{{ item.task }}</span>
-                  <small>{{ item.status_label }} · {{ item.step_label }}</small>
-                </a>
-              {% endfor %}
-            </nav>
-          </section>
-        {% endfor %}
+        <a class="sidebar-brand" href="/">Guarded Harness</a>
+        <div class="sidebar-scroll">
+          {% for group in sidebar_groups %}
+            <section class="sidebar-group">
+              <h2>{{ group.label }}</h2>
+              <nav class="sidebar-list">
+                {% for item in group.sessions %}
+                  <a class="sidebar-item{% if item.active %} active{% endif %}" href="{{ item.trace_url }}">
+                    <span>{{ item.task }}</span>
+                    <small>{{ item.status_label }} · {{ item.step_label }}</small>
+                  </a>
+                {% endfor %}
+              </nav>
+            </section>
+          {% endfor %}
+        </div>
       </aside>
       <section class="chat-main">
         <section class="hero">

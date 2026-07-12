@@ -25,6 +25,7 @@ def test_index_loads_chat_workspace_without_guardrail_nav(tmp_path: Path):
     assert "New session" not in response.text
     assert 'class="app-layout"' in response.text
     assert 'class="session-sidebar"' in response.text
+    assert 'class="sidebar-brand"' in response.text
     assert "/guardrail" not in response.text
     assert "mode:" in response.text
     assert "deepseek-v4-flash" in response.text
@@ -46,6 +47,8 @@ def test_index_loads_chat_workspace_without_guardrail_nav(tmp_path: Path):
     assert ">Start task<" not in response.text
     assert 'aria-label="Start task"' in response.text
     assert "↑" in response.text
+    assert "鈫" not in response.text
+    assert " 路 " not in response.text
     assert response.text.index('placeholder="Message Guarded Harness..."') < response.text.index("mock · deepseek-v4-flash · key missing")
 
 
@@ -66,10 +69,15 @@ def test_chat_workspace_css_uses_global_scroll_and_compact_composer():
     assert ".chat-page { min-height: 100vh; padding: 0 32px 150px var(--sidebar-width); }" in response.text
     assert ".chat-main { width: min(var(--content-width), 100%); margin: 0 auto; min-width: 0; }" in response.text
     assert ".composer-fixed { position: fixed; left: calc(var(--sidebar-width) + (100vw - var(--sidebar-width)) / 2); bottom: 16px; z-index: 20; width: min(var(--content-width), calc(100vw - var(--sidebar-width) - 64px));" in response.text
-    assert ".session-sidebar { position: fixed; left: 0; top: 0; width: var(--sidebar-width); height: 100vh; overflow-y: auto" in response.text
-    assert "overflow-y: auto" in response.text
+    assert ".session-sidebar { position: fixed; left: 0; top: 0; width: var(--sidebar-width); height: 100vh; box-sizing: border-box; border-right: 1px solid #e5e5e5; background: #fff; }" in response.text
+    assert ".sidebar-brand" in response.text
+    assert ".sidebar-scroll { height: calc(100vh - 72px); overflow-y: auto; padding: 16px 24px 24px; }" in response.text
     assert ".sidebar-item { min-width: 0" in response.text
     assert ".sidebar-item span, .sidebar-item small { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }" in response.text
+    assert ".composer, .settings-card { margin: 24px 0 64px; padding: 12px; border: 1px solid #e5e5e5; border-radius: 24px; background: #fff; }" in response.text
+    assert ".composer-row { display: grid; grid-template-columns: 1fr 36px; gap: 8px; align-items: end; }" in response.text
+    assert ".composer-submit { align-self: end" in response.text
+    assert "textarea { min-height: 44px; max-height: 180px; border-radius: 22px; resize: none; overflow-y: auto; }" in response.text
     assert ".composer-sticky" not in response.text
     assert ".chat-scroll" not in response.text
 
@@ -90,7 +98,8 @@ def test_index_lists_recent_sessions_as_conversation_items(tmp_path: Path):
     assert "second task" in response.text
     assert "first done" in response.text
     assert "second done" in response.text
-    assert response.text.index("second task") < response.text.index("first task")
+    conversation_html = response.text[response.text.index('class="conversation-list"'):]
+    assert conversation_html.index("first task") < conversation_html.index("second task")
     assert response.text.count('class="message message-user"') == 2
     assert response.text.count('class="message message-agent"') == 2
     assert "<strong>You</strong>" not in response.text
@@ -113,7 +122,12 @@ def test_sidebar_uses_latest_first_and_singular_step_label(tmp_path: Path):
     response = client.get("/")
 
     assert response.status_code == 200
-    assert response.text.index("newer two-step task") < response.text.index("older one-step task")
+    sidebar_start = response.text.index('class="sidebar-list"')
+    conversation_start = response.text.index('class="conversation-list"')
+    sidebar_html = response.text[sidebar_start:conversation_start]
+    conversation_html = response.text[conversation_start:]
+    assert sidebar_html.index("newer two-step task") < sidebar_html.index("older one-step task")
+    assert conversation_html.index("older one-step task") < conversation_html.index("newer two-step task")
     assert "finished · 1 step" in response.text or "running · 1 step" in response.text
     assert "running · 2 steps" in response.text
 
@@ -132,6 +146,7 @@ def test_sidebar_groups_recent_sessions_and_session_page_marks_current(tmp_path:
     assert session_response.status_code == 200
     assert 'class="sidebar-item active"' in session_response.text
     assert "current task" in session_response.text
+    assert session_response.text.index('class="sidebar-brand"') < session_response.text.index('class="sidebar-list"')
 
 
 def test_index_redacts_recent_session_summary_secrets(tmp_path: Path):

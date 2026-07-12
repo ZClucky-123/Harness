@@ -417,6 +417,7 @@ def create_app(store_path: Path | None = None, workspace_root: Path | None = Non
         settings = _load_provider_settings(root)
         credential_configured = _credential_store().status()
         conversation_items = _conversation_items(store)
+        chat_items = list(reversed(conversation_items))
         return _TEMPLATES.TemplateResponse(
             request,
             "index.html",
@@ -425,7 +426,7 @@ def create_app(store_path: Path | None = None, workspace_root: Path | None = Non
                 "settings": settings,
                 "credential_configured": credential_configured,
                 "provider_status": _provider_status(settings, credential_configured),
-                "conversation_items": conversation_items,
+                "conversation_items": chat_items,
                 "sidebar_items": conversation_items,
                 "sidebar_groups": _sidebar_groups(conversation_items),
                 "pending_approval_count": _pending_approval_count(store),
