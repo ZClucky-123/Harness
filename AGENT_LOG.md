@@ -70,3 +70,12 @@
 - 使用技能：`brainstorming` 确认页面信息架构；`test-driven-development` 先写 Dashboard、Provider Settings、Approvals queue、Guardrail Demo 的失败测试。
 - 人工决策：将非 secret 的 mode/base URL/model 保存到 `.guarded-harness/provider.json`；API key 只在用户勾选时写入 OS keyring，不放入配置文件。
 - 作业边界说明：Guardrail Demo 直接调用 deterministic `Guardrail.evaluate()`，用于展示“机制是代码而不是提示词”。
+
+## 2026-07-13 01:26:06 +08:00 - Task 12 WebUI layout polish started
+
+- **Task:** Task 12 - ChatGPT-like WebUI Layout Polish.
+- **Superpowers skills:** `brainstorming`, `test-driven-development`; planned follow-up `verification-before-completion`.
+- **Prompt/context configuration:** User supplied five screenshot-driven UI requirements: keep only one approval navigation link and render links as underlined text, remove Copy command, pin the session sidebar to the left with independent scrolling, align chat content and composer widths, and tune overall horizontal spacing to match ChatGPT-like layout.
+- **Subagent output key fragments:** No delegated subagent output. Work is performed by `Codex(main)`.
+- **Manual intervention:** User approved the design and required explicit process records in `PLAN.md` and `AGENT_LOG.md`, plus commit messages that identify subagent/manual changes.
+- **Lesson so far:** UI polish requests must be tracked as first-class tasks, not hidden inside one large implementation commit.

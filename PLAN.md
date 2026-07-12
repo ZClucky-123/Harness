@@ -987,3 +987,33 @@ git commit -m "docs: add distribution ci and process documentation"
 - 实现每个 task 时必须使用 `superpowers:test-driven-development`，先写失败测试，再写实现。
 - 完成每个 task 后使用 code review 流程检查：先 spec 合规，再代码质量。
 - 正式实现前需进行课程要求的冷启动验证：让不同类型 agent 仅凭 `SPEC.md` + `PLAN.md` 尝试 1-2 个 task，并把结果记录到 `SPEC_PROCESS.md`。
+
+---
+
+## Task 12: ChatGPT-like WebUI Layout Polish
+
+**Started:** 2026-07-13 01:26:06 +08:00
+
+**Subagent:** Codex(main)
+
+**Manual intervention:** User requested five screenshot-driven UI changes: simplify approval links, remove copy command, pin sidebar to the left with independent scrolling, align chat content and composer widths, and tune global horizontal spacing.
+
+**Files:**
+- Modify: `src/guarded_harness/web/templates/index.html`
+- Modify: `src/guarded_harness/web/templates/session.html`
+- Modify: `src/guarded_harness/web/templates/approvals.html`
+- Modify: `src/guarded_harness/web/static/styles.css`
+- Modify: `tests/integration/test_web.py`
+- Modify: `PLAN.md`
+- Modify: `AGENT_LOG.md`
+
+- [x] **Step 1: Record task start and workflow requirements**
+  - Commit: pending
+- [ ] **Step 2: Add failing WebUI tests for links, fixed sidebar, aligned composer, and spacing**
+  - Commit: pending
+- [ ] **Step 3: Implement templates and CSS**
+  - Commit: pending
+- [ ] **Step 4: Run focused and full verification**
+  - Commit: pending
+- [ ] **Step 5: Record final commit hashes and lessons**
+  - Commit: pending
