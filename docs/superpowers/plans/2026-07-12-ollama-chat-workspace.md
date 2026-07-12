@@ -286,7 +286,7 @@ git commit -m "feat: keep web tasks in chat workspace"
 - Keeps: `GET /guardrail` and `POST /guardrail`.
 - Removes: Main navigation links to `/guardrail`.
 
-- [ ] **Step 1: Write failing navigation test**
+- [x] **Step 1: Write failing navigation test**
 
 Update `test_index_loads` into:
 
@@ -306,7 +306,7 @@ def test_index_loads_chat_workspace_without_guardrail_nav():
     assert 'name="api_key"' not in response.text
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run:
 
@@ -316,7 +316,7 @@ Run:
 
 Expected: FAIL while old index still contains Guardrail Demo or Change configuration.
 
-- [ ] **Step 3: Remove primary guardrail links**
+- [x] **Step 3: Remove primary guardrail links**
 
 In primary nav templates, use:
 
@@ -330,11 +330,11 @@ In primary nav templates, use:
 
 For `approvals.html`, omit the self-link only if desired, but never include `/guardrail`.
 
-- [ ] **Step 4: Keep direct guardrail test**
+- [x] **Step 4: Keep direct guardrail test**
 
 Keep `test_guardrail_demo_page_evaluates_sample_actions` unchanged so the hidden page remains verified.
 
-- [ ] **Step 5: Run targeted tests**
+- [x] **Step 5: Run targeted tests**
 
 Run:
 
@@ -344,7 +344,7 @@ Run:
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/guarded_harness/web/templates tests/integration/test_web.py
