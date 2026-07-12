@@ -536,4 +536,3 @@ Report:
 - Spec coverage: Chat Workspace, hidden Guardrail Demo entry, saved conversation display, home-page redirect, Ollama visual style, provider settings, approvals, session trace, and direct guardrail route are each mapped to tasks.
 - Placeholder scan: no TBD/TODO/implement-later language.
 - Type consistency: `SQLiteStore.list_sessions(limit: int = 20)` is introduced in Task 1 and consumed by `_conversation_items(store, limit: int = 12)`.
-

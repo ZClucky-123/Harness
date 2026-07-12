@@ -20,8 +20,12 @@ p { color: #737373; line-height: 1.5; }
 .pill, .mode-option { border: 1px solid #e5e5e5; border-radius: 9999px; padding: 8px 16px; background: #fafafa; color: #000; font-size: 14px; }
 .chat-panel, .panel, .queue-card, .terminal-card { border: 1px solid #e5e5e5; border-radius: 12px; background: #fff; }
 .chat-panel { padding: 16px; }
-.message { padding: 16px; border-bottom: 1px solid #e5e5e5; }
-.message:last-child { border-bottom: 0; }
+.conversation-list { display: grid; gap: 24px; }
+.conversation-item { display: grid; gap: 10px; }
+.message { width: fit-content; max-width: min(100%, 620px); padding: 12px 16px; border-radius: 16px; }
+.message p { margin: 8px 0 0; }
+.message-user { justify-self: end; background: #f5f5f5; }
+.message-agent { justify-self: start; background: #fafafa; border: 1px solid #e5e5e5; }
 .message-user strong, .message-agent strong { color: #000; font-weight: 500; }
 .composer { margin: 24px 0 64px; padding: 16px; border: 1px solid #e5e5e5; border-radius: 24px; background: #fafafa; }
 label { display: block; margin: 14px 0 6px; font-weight: 500; color: #000; }
@@ -49,7 +53,6 @@ dd { margin: 0; }
 .trace li, .approvals li { margin: 16px 0; }
 .approvals form { display: inline-block; margin: 8px 8px 0 0; }
 .event-title, .status-badge { font-weight: 500; }
-.conversation-item + .conversation-item { margin-top: 16px; padding-top: 16px; border-top: 1px solid #e5e5e5; }
 @media (max-width: 760px) {
   .shell { padding: 18px; }
   .site-header { align-items: flex-start; flex-direction: column; }

@@ -22,21 +22,20 @@
       </div>
     </section>
     <section class="chat-panel">
-      <div class="message message-agent">
-        <h2>Provider</h2>
-        <p>mode: {{ settings.mode }}</p>
-        <p>base: {{ settings.base_url }}</p>
-        <p>model: {{ settings.model }}</p>
-        <p>key: {% if credential_configured %}configured{% else %}missing{% endif %}</p>
-      </div>
-      <div class="message message-agent">
-        <h2>Recent Sessions</h2>
+      <h2>Recent Sessions</h2>
+      <div class="conversation-list">
         {% for item in conversation_items %}
-          <article class="conversation-item message-user">
-            <p>{{ item.task }}</p>
-            <p>{{ item.summary }}</p>
-            <p>{{ item.status }} - {{ item.step_count }} steps</p>
-            <a class="muted-link" href="{{ item.trace_url }}">View trace</a>
+          <article class="conversation-item">
+            <div class="message message-user">
+              <strong>You</strong>
+              <p>{{ item.task }}</p>
+            </div>
+            <div class="message message-agent">
+              <strong>Harness</strong>
+              <p>{{ item.summary }}</p>
+              <p>{{ item.status }} - {{ item.step_count }} steps</p>
+              <a class="muted-link" href="{{ item.trace_url }}">View trace</a>
+            </div>
           </article>
         {% endfor %}
       </div>
