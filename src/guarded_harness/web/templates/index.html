@@ -19,7 +19,6 @@
     <section class="chat-panel">
       <h2>Recent Sessions</h2>
       <div class="conversation-list">
-        <div class="message message-system chat-status">mode: {{ settings.mode }} · model: {{ settings.model }} · key: {% if credential_configured %}configured{% else %}missing{% endif %}</div>
         {% for item in conversation_items %}
           <article class="conversation-item">
             <div class="message message-user">
@@ -34,11 +33,13 @@
         {% endfor %}
       </div>
     </section>
-    <form class="composer composer-compact" action="/sessions" method="post">
+    <form class="composer composer-fixed" action="/sessions" method="post">
       <fieldset>
-        <label for="task">Task</label>
-        <textarea id="task" name="task" rows="3" required></textarea>
-        <button type="submit">Start task</button>
+        <div class="composer-status">mode: {{ settings.mode }} · model: {{ settings.model }} · key: {% if credential_configured %}configured{% else %}missing{% endif %}</div>
+        <div class="composer-row">
+          <textarea id="task" name="task" rows="1" placeholder="Message Guarded Harness..." aria-label="Task" required></textarea>
+          <button class="composer-submit" type="submit" aria-label="Start task">↑</button>
+        </div>
       </fieldset>
     </form>
   </main>

@@ -26,17 +26,21 @@ def test_index_loads_chat_workspace_without_guardrail_nav(tmp_path: Path):
     assert "deepseek-v4-flash" in response.text
     assert 'name="api_key"' not in response.text
     assert "chat-page" in response.text
-    assert "chat-status" in response.text
+    assert "composer-status" in response.text
+    assert "message-system" not in response.text
     assert "mode: mock · model: deepseek-v4-flash · key: missing" in response.text
     assert "chat-scroll" not in response.text
     assert 'id="chat-scroll"' not in response.text
-    assert "composer-compact" in response.text
+    assert "composer-fixed" in response.text
+    assert "composer-submit" in response.text
     assert 'class="status-pills"' not in response.text
     assert '<h2>Provider</h2>' not in response.text
     assert "<strong>You</strong>" not in response.text
     assert "<strong>Harness</strong>" not in response.text
     assert "window.scrollTo" in response.text
-    assert response.text.count(">Task<") == 1
+    assert ">Task<" not in response.text
+    assert ">Start task<" not in response.text
+    assert 'aria-label="Start task"' in response.text
 
 
 def test_chat_workspace_css_uses_global_scroll_and_compact_composer():
@@ -48,7 +52,9 @@ def test_chat_workspace_css_uses_global_scroll_and_compact_composer():
     assert ".chat-page" in response.text
     assert ".site-header { position: sticky" in response.text
     assert ".chat-panel { border: 0" in response.text
-    assert ".composer-compact" in response.text
+    assert ".composer-fixed" in response.text
+    assert ".composer-submit" in response.text
+    assert ".composer-status" in response.text
     assert ".composer-sticky" not in response.text
     assert ".chat-scroll" not in response.text
     assert "overflow-y: auto" not in response.text
