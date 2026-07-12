@@ -90,3 +90,12 @@
 - **Verification:** `pytest -q` -> 235 passed, 2 skipped, 1 warning. `python -m compileall src` -> exit 0. `git diff --check` -> exit 0.
 - **Commits:** workflow start `72877ec`; implementation `33ecf68`; completion record `543f6e1`.
 - **Lesson:** Layout constants should be explicit CSS variables (`--sidebar-width`, `--content-width`) so future screenshot-driven tuning stays local and testable.
+
+## 2026-07-13 01:36:10 +08:00 - Task 12 PR workflow status
+
+- **Task:** Task 12 - ChatGPT-like WebUI Layout Polish.
+- **Superpowers skills:** `verification-before-completion`.
+- **Prompt/context configuration:** User required a complete commit + PR workflow and commit messages that identify subagent/manual intervention.
+- **Subagent output key fragments:** No delegated subagent output. Local branch `feature/guarded-harness-impl` contains split commits and is PR-ready.
+- **Manual intervention:** Attempted `git push -u origin feature/guarded-harness-impl`, but sandbox safety rejected exporting workspace code to `https://github.com/ZClucky-123/Harness.git` until the user explicitly approves that remote push after being informed of the risk.
+- **Lesson:** PR workflow needs an explicit remote-export approval separate from local commit approval.
