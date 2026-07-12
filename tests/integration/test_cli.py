@@ -1,4 +1,5 @@
 from typer.testing import CliRunner
+import httpx
 
 from guarded_harness.cli import app
 from guarded_harness.config.credentials import CredentialStore, InMemoryKeyring
@@ -74,6 +75,38 @@ def test_credentials_clear_never_prints_supplied_key(monkeypatch):
     assert credentials.get_key() is None
     assert "credential cleared" in result.stdout
     assert supplied_key not in result.stdout
+
+
+def test_live_run_uses_configured_provider_and_finishes(tmp_path, monkeypatch):
+    credentials = CredentialStore(keyring_backend=InMemoryKeyring())
+    credentials.set_key("live-secret")
+
+    calls = []
+
+    def fake_post(*args, **kwargs):
+        calls.append((args, kwargs))
+        request = httpx.Request("POST", args[0])
+        return httpx.Response(
+            200,
+            request=request,
+            json={"choices": [{"message": {"content": '```json\n{"type":"finish","message":"2"}\n```'}}]},
+        )
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("GUARDED_HARNESS_BASE_URL", "https://njusehub.info/v1")
+    monkeypatch.setenv("GUARDED_HARNESS_MODEL", "deepseek-v4-flash")
+    monkeypatch.setattr("guarded_harness.cli._credential_store", lambda: credentials)
+    monkeypatch.setattr("guarded_harness.llm.openai_compatible.httpx.post", fake_post)
+
+    result = runner.invoke(app, ["run", "回复1+1+?", "--live"])
+
+    assert result.exit_code == 0
+    assert "finished: 2" in result.stdout
+    assert "status=finished" in result.stdout
+    assert calls[0][0][0] == "https://njusehub.info/v1/chat/completions"
+    assert calls[0][1]["headers"]["Authorization"] == "Bearer live-secret"
+    assert calls[0][1]["json"]["model"] == "deepseek-v4-flash"
+    assert "live-secret" not in result.stdout
 
 
 def test_approvals_list_and_approve_resume_demo_session(tmp_path, monkeypatch):

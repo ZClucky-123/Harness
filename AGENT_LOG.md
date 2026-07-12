@@ -49,3 +49,17 @@
   跨进程恢复明确在处理动作后结束，不声称继续 live provider loop。
 - 实现 `remember` action 的字段验证、memory 持久化、observation 与 audit。
 - 当前机器仍缺 FastAPI/Typer；涉及 Web/CLI 的新增测试已提交，但只能在 GitLab Runner 或安装完整依赖后执行。
+
+## 2026-07-12 Live Provider 与 WebUI 追补
+
+- 触发原因：使用 NJU SE Hub (`https://njusehub.info/v1`, `deepseek-v4-flash`) 运行 `harness run "回复1+1+?" --live` 时，真实模型返回自然语言，核心 loop 期望 action JSON，导致连续 `parser_error` 并进入 `max_steps`。
+- 使用技能：`brainstorming` 澄清变更边界；`writing-plans` 产出小计划；`test-driven-development` 先写 provider/Web/CLI 失败测试，再实现。
+- 人工决策：在 provider 层加入 action JSON 协议提示和 fenced JSON 清洗；WebUI 从 mock-only 扩展为 mock/live 双模式，并允许页面输入 base URL、model、API key，选择性保存到 OS keyring。
+- 作业边界说明：这次变更只改善真实 LLM 接入和演示可用性，不把 guardrail、HITL、feedback 等机制迁移到提示词；核心机制仍由代码和 MockLLM 测试验证。
+
+## 2026-07-12 WebUI 中文展示与 OpenCode 风格修复
+
+- 触发原因：Session trace 页面把中文 payload 渲染成 `\uXXXX`，且页面视觉仍偏最小原型，不利于演示。
+- 使用技能：`brainstorming` 明确修复范围；`test-driven-development` 先写中文展示失败测试，再实现 `pretty_json` filter 和模板改造。
+- 人工决策：只修展示层，不改 SQLite 存储和 audit 数据模型；UI 参照 `DESIGN-opencode.ai.md` 的 cream canvas、monospace、terminal panel、ASCII bracket 语言。
+- 作业边界说明：这是 WebUI 可用性与 Open Design 风格对齐，不改变 harness 核心机制。

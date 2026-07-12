@@ -48,3 +48,13 @@ HITL、CLI 与 WebUI。交付前执行受当前环境支持的 pytest 子集、`
 | 日期 | 范围 | 结果 | 发现与后续动作 |
 | --- | --- | --- | --- |
 | 待执行 | 待选 Task 1--2 | 待记录 | 待记录 |
+
+## 后期需求变更：Live Provider 与 WebUI
+
+在本地接入 NJU SE Hub 后，发现真实模型默认返回自然语言，而 harness 主循环只接受 action JSON。这暴露的是 provider 适配层问题，而不是治理机制问题。处理策略是在 `OpenAICompatibleProvider` 中加入明确的 action JSON 输出协议，并清洗常见的 fenced JSON 响应；同时把 WebUI 从固定 MockLLM 扩展为 Mock/Live 双模式，允许用户输入 OpenAI-compatible base URL、model 和 API key。
+
+该变更符合项目要求：API key 仍通过隐藏输入和 OS keyring 管理，不写入源码、审计事件或 session；真实 LLM 调用仍只是单次 provider 能力，agent loop、guardrail、HITL 状态机、反馈分类和工具分发仍由项目代码实现，并继续通过 mock/stub LLM 的确定性测试验证。
+
+## 后期 UI 修复：中文展示与 OpenCode 风格
+
+WebUI 原先直接使用 Jinja `tojson` 展示 trace payload，导致中文在页面源码中显示为 `\uXXXX`。修复方式是在模板层使用 `ensure_ascii=False` 的 JSON filter，让用户看到可读中文；这不改变数据库写入和审计模型。页面视觉同时按 `DESIGN-opencode.ai.md` 收敛到 monospaced terminal 风格，包括 cream 背景、深色终端面板、ASCII bracket 标签、hairline 边框和 4px 控件。该修复服务于演示与可用性，不影响核心 harness 判断逻辑。

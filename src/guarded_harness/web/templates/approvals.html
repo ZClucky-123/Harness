@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -8,15 +8,21 @@
 </head>
 <body>
   <main>
-    <header>
-      <h1>Approvals</h1>
-      <a href="/">New task</a>
+    <header class="topbar">
+      <pre class="wordmark">GUARDED
+HARNESS</pre>
+      <nav><a href="/">New task</a></nav>
     </header>
+    <section class="hero-terminal compact">
+      <p class="terminal-muted">[human in the loop]</p>
+      <h1>Approvals</h1>
+      <p>| pending actions pause here before execution |</p>
+    </section>
     {% if approvals %}
     <ul class="approvals">
     {% for approval in approvals %}
       <li>
-        <p><strong>{{ approval.status }}</strong>: {{ approval.redacted_reason }}</p>
+        <p><span class="status-badge">[{{ approval.status }}]</span> {{ approval.redacted_reason }}</p>
         <pre>{{ approval.redacted_action_json }}</pre>
         {% if approval.status == "pending" %}
         <form action="/approvals/{{ approval.id }}/approve" method="post"><button type="submit">Approve</button></form>

@@ -48,7 +48,15 @@ harness run "inspect the tests" --live
 uvicorn guarded_harness.web.app:create_app --factory --host 127.0.0.1 --port 8000
 ```
 
-浏览器打开 `http://127.0.0.1:8000`，可创建 mock session、查看审计轨迹并处理待审批项。
+浏览器打开 `http://127.0.0.1:8000`，可创建 mock session、查看审计轨迹并处理待审批项。首页也支持
+OpenAI-compatible live provider；例如 NJU SE Hub 可填写：
+
+```text
+GUARDED_HARNESS_BASE_URL = https://njusehub.info/v1
+GUARDED_HARNESS_MODEL = deepseek-v4-flash
+```
+
+API key 可在页面临时输入，也可勾选保存到 OS keyring。页面不会回显 key，session 与审计轨迹也不会持久化 key。
 
 ## Mock 演示
 
@@ -107,7 +115,7 @@ demo/            # 离线机制演示说明
 
 ## 已知限制
 
-- WebUI 目前只运行确定性的 mock session；真实 LLM 调用通过 CLI `run --live` 提供。
+- WebUI 支持确定性的 mock session 与显式 opt-in 的 OpenAI-compatible live session；live 对话状态尚未跨恢复轮次持久化。
 - Guardrail 使用显式规则，尚未提供可配置策略、完整 OS sandbox 或多用户鉴权。
 - keyring 的可用性取决于本机操作系统与后端配置。
 

@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -8,19 +8,28 @@
 </head>
 <body>
   <main>
-    <header>
-      <h1>Session</h1>
+    <header class="topbar">
+      <pre class="wordmark">GUARDED
+HARNESS</pre>
       <nav><a href="/">New task</a> <a href="/approvals">Approvals</a></nav>
     </header>
-    <dl>
+    <section class="hero-terminal compact">
+      <p class="terminal-muted">[session]</p>
+      <h1>Session</h1>
+      <p>{{ display_task }}</p>
+    </section>
+    <dl class="meta-grid">
       <dt>Task</dt><dd>{{ display_task }}</dd>
-      <dt>Status</dt><dd>{{ session.status.value }}</dd>
+      <dt>Status</dt><dd><span class="status-badge">[{{ session.status.value }}]</span></dd>
       <dt>Steps</dt><dd>{{ session.step_count }}</dd>
     </dl>
-    <h2>Trace</h2>
+    <h2>[+] Trace</h2>
     <ol class="trace">
     {% for event in events %}
-      <li><strong>{{ event.event_type }}</strong><pre>{{ event.payload | tojson(indent=2) }}</pre></li>
+      <li>
+        <div class="event-title">[event] {{ event.event_type }}</div>
+        <pre>{{ event.payload | pretty_json }}</pre>
+      </li>
     {% endfor %}
     </ol>
   </main>

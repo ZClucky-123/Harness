@@ -6,14 +6,25 @@ from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
+from guarded_harness.config.credentials import CredentialStore
+from guarded_harness.config.loader import load_config
 from guarded_harness.core.loop import AgentLoop
+from guarded_harness.llm.base import LLMProvider
 from guarded_harness.llm.mock import MockLLM
+from guarded_harness.llm.openai_compatible import OpenAICompatibleProvider
 from guarded_harness.memory.store import SQLiteStore
 from guarded_harness.governance.redaction import redact_secrets
 
 
 _PACKAGE_DIR = Path(__file__).resolve().parent
 _TEMPLATES = Jinja2Templates(directory=str(_PACKAGE_DIR / "templates"))
+_TEMPLATES.env.filters["pretty_json"] = lambda value: json.dumps(value, ensure_ascii=False, indent=2)
+_DEFAULT_BASE_URL = "https://njusehub.info/v1"
+_DEFAULT_MODEL = "deepseek-v4-flash"
+
+
+def _credential_store() -> CredentialStore:
+    return CredentialStore()
 
 
 def _store_for(store_path: Path | None, workspace_root: Path | None) -> tuple[SQLiteStore, Path]:
@@ -35,6 +46,10 @@ def _finish_loop(workspace_root: Path, store: SQLiteStore, message: str) -> Agen
     )
 
 
+def _loop_for_provider(workspace_root: Path, store: SQLiteStore, provider: LLMProvider) -> AgentLoop:
+    return AgentLoop.for_workspace(workspace_root, provider, store)
+
+
 def create_app(store_path: Path | None = None, workspace_root: Path | None = None) -> FastAPI:
     """Create a local, deterministic WebUI backed by a workspace-local store."""
     store, root = _store_for(store_path, workspace_root)
@@ -43,11 +58,32 @@ def create_app(store_path: Path | None = None, workspace_root: Path | None = Non
 
     @app.get("/")
     def index(request: Request):
-        return _TEMPLATES.TemplateResponse(request, "index.html", {"title": "Guarded Harness"})
+        config = load_config()
+        return _TEMPLATES.TemplateResponse(
+            request,
+            "index.html",
+            {
+                "title": "Guarded Harness",
+                "base_url": config.base_url if config.base_url != "https://api.openai.com/v1" else _DEFAULT_BASE_URL,
+                "model": config.model if config.model != "gpt-4o-mini" else _DEFAULT_MODEL,
+                "credential_configured": _credential_store().status(),
+            },
+        )
 
     @app.post("/sessions")
-    def start_session(task: str = Form(...)):
-        session = _finish_loop(root, store, "mock run completed").run(task)
+    def start_session(
+        task: str = Form(...),
+        mode: str = Form("mock"),
+        base_url: str = Form(_DEFAULT_BASE_URL),
+        model: str = Form(_DEFAULT_MODEL),
+        api_key: str = Form(""),
+        save_api_key: str | None = Form(None),
+    ):
+        if mode == "live":
+            provider = _live_provider(base_url, model, api_key, save_api_key)
+            session = _loop_for_provider(root, store, provider).run(task)
+        else:
+            session = _finish_loop(root, store, "mock run completed").run(task)
         return RedirectResponse(url=f"/sessions/{session.id}", status_code=303)
 
     @app.get("/sessions/{session_id}")
@@ -94,6 +130,22 @@ def create_app(store_path: Path | None = None, workspace_root: Path | None = Non
         return RedirectResponse(url=f"/sessions/{approval.session_id}", status_code=303)
 
     return app
+
+
+def _live_provider(base_url: str, model: str, api_key: str, save_api_key: str | None) -> OpenAICompatibleProvider:
+    credentials = _credential_store()
+    resolved_key = api_key.strip() or credentials.get_key()
+    if resolved_key is None:
+        raise HTTPException(status_code=400, detail="API key is required for live mode")
+    if api_key.strip() and save_api_key:
+        credentials.set_key(api_key.strip())
+    config = load_config()
+    return OpenAICompatibleProvider(
+        base_url.strip() or _DEFAULT_BASE_URL,
+        model.strip() or _DEFAULT_MODEL,
+        resolved_key,
+        config.timeout,
+    )
 
 
 def _resume_approval(store: SQLiteStore, approval_id: str, approved: bool) -> RedirectResponse:
