@@ -69,6 +69,22 @@ def test_provider_settings_page_loads_defaults(tmp_path: Path, monkeypatch):
     assert "key: missing" in response.text
 
 
+def test_primary_navigation_omits_guardrail_link_but_direct_page_loads(tmp_path: Path, monkeypatch):
+    monkeypatch.setattr("guarded_harness.web.app._credential_store", lambda: _FakeCredentials(None))
+    store = SQLiteStore(tmp_path / "state.sqlite3", workspace_root=tmp_path)
+    session = store.create_session("navigation check", tmp_path)
+    client = TestClient(create_app(store.db_path, workspace_root=tmp_path))
+
+    for path in ("/settings", "/approvals", f"/sessions/{session.id}"):
+        response = client.get(path)
+        assert response.status_code == 200
+        assert "/guardrail" not in response.text
+
+    guardrail = client.get("/guardrail")
+    assert guardrail.status_code == 200
+    assert "Guardrail Demo" in guardrail.text
+
+
 def test_provider_settings_save_updates_dashboard_without_persisting_key(tmp_path: Path, monkeypatch):
     credentials = _FakeCredentials(None)
     monkeypatch.setattr("guarded_harness.web.app._credential_store", lambda: credentials)

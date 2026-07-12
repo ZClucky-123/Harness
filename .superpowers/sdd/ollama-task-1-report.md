@@ -61,3 +61,25 @@ Full web integration tests:
 ```
 
 Result: `19 passed, 1 warning`.
+
+## Task 1 Re-review Fix
+
+- Removed `/guardrail` from the primary navigation in the settings, approvals, and session templates.
+- Kept direct `/guardrail` access available.
+- Added integration coverage proving those three primary navigations omit the link while direct `/guardrail` still loads.
+
+Focused re-review tests:
+
+```powershell
+.venv\Scripts\python.exe -m pytest tests/integration/test_web.py::test_provider_settings_page_loads_defaults tests/integration/test_web.py::test_approvals_page_loads tests/integration/test_web.py::test_session_page_preserves_chinese_text_in_task_and_trace tests/integration/test_web.py::test_guardrail_demo_page_evaluates_sample_actions -q
+```
+
+Result: `4 passed, 1 warning`.
+
+Full web integration tests:
+
+```powershell
+.venv\Scripts\python.exe -m pytest tests/integration/test_web.py -q
+```
+
+Result: `20 passed, 1 warning`.
