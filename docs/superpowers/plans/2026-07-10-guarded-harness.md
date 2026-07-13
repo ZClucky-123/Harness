@@ -100,7 +100,7 @@ demo/
 - Produces: `Observation`, `FeedbackKind`
 - Produces: `SessionStatus`, `SessionState`
 
-- [ ] **Step 1: Write failing parser and model tests**
+- [x] **Step 1: Write failing parser and model tests**
 
 Create `tests/unit/test_actions.py`:
 
@@ -127,13 +127,13 @@ def test_parse_invalid_json_fails_deterministically():
         parse_action("{not json")
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `pytest tests/unit/test_actions.py -q`
 
 Expected: FAIL with `ModuleNotFoundError: No module named 'guarded_harness'`.
 
-- [ ] **Step 3: Add packaging and model implementation**
+- [x] **Step 3: Add packaging and model implementation**
 
 Create `pyproject.toml` with package metadata and dependencies:
 
@@ -194,13 +194,13 @@ Create `src/guarded_harness/core/observations.py` with `FeedbackKind` enum and f
 
 Create `src/guarded_harness/core/sessions.py` with `SessionStatus` enum and `SessionState`.
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `pytest tests/unit/test_actions.py -q`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add pyproject.toml .gitignore src/guarded_harness tests/unit/test_actions.py
