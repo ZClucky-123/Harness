@@ -348,3 +348,27 @@
 - **Trigger:** User asked which approval denial behavior is better; we chose explicit buttons for both meanings instead of overloading one `Deny` action.
 - **Fix:** Chat approval cards and the Approvals page now show `Approve once`, `Deny action`, and `Stop task`. `/approvals/{id}/deny` means "deny this action and let live provider try another route"; `/approvals/{id}/stop` means "deny and end this task". The processing UI now shows distinct `Denying action...` and `Stopping...` states.
 - **TDD evidence:** Updated approval-card assertions and added regressions proving live `Deny action` continues with `approval_denied` feedback while live `Stop task` does not construct/call the provider and records `approval_recovery_ended`.
+
+## 2026-07-13 - Fix: Docker provider settings keyring failure
+
+- **Superpowers skills:** `systematic-debugging` (traced Settings form -> POST route -> keyring backend), `test-driven-development` (red/green Web regressions), `verification-before-completion`.
+- **Trigger:** User ran the Docker image, opened Provider Settings, entered an API key, checked `Save key to OS keyring`, and saw `Internal Server Error`.
+- **Root cause:** Docker/Linux containers normally do not have a usable desktop OS keyring. `POST /settings` called `CredentialStore.set_key()` directly, so keyring backend failures escaped FastAPI as 500 responses.
+- **Fixes:**
+  - Settings save now catches keyring failures and re-renders Provider Settings with a 400 status plus `Could not save API key: ...`.
+  - The submitted API key is still never written to `provider.json`, SQLite, audit events, logs, or page output.
+  - Added `GUARDED_HARNESS_API_KEY` as an environment-variable fallback for Docker/live provider usage.
+  - README now documents Docker live mode with environment-variable injection and clarifies Python 3.11+ setup commands.
+- **TDD evidence:** Added failing tests for keyring failure handling and environment API key use. They failed first with `RuntimeError: keyring unavailable` / `400 Bad Request`, then passed after the route/config changes.
+- **Verification:** `pytest -q` -> `261 passed, 2 skipped`; `compileall src tests` passed; `git diff --check` passed. `docker build -t guarded-harness .` first hit a Docker Desktop BuildKit snapshot cache error at image export, then passed on retry.
+- **Commit:** `459ba7a fix: handle keyring failures in provider settings`.
+
+## 2026-07-13 - Fix: Provider Settings temporary API key in WebUI
+
+- **Superpowers skills:** `systematic-debugging` (verified why Settings input did not affect later Chat runs), `test-driven-development` (red/green Web regression), `verification-before-completion`.
+- **Trigger:** User reported that entering an API key in Provider Settings and clicking `Save provider` returned to Chat, but the key was not recorded and live mode still behaved as if no key existed.
+- **Root cause:** Without `Save key to OS keyring`, `/settings` only persisted non-sensitive provider settings (`mode`, `base_url`, `model`). This was safe, but poor UX for Docker because keyring persistence is unavailable there.
+- **Fix:** `create_app()` now keeps a submitted Settings API key in current-process memory when the user does not request keyring persistence. This key can be used by later Chat live sessions in the same server/container process, while remaining absent from disk, SQLite, audit traces, and rendered HTML. Restarting the container or server drops the key.
+- **TDD evidence:** Added a failing integration test proving that a Settings-submitted key should mark the provider as configured and power a later live session without persisting the secret. It failed first with `key missing`, then passed after adding the process-local key.
+- **Verification:** `pytest -q` -> `262 passed, 2 skipped`; `compileall src tests` passed; `git diff --check` passed.
+- **Commit:** `4e33334 fix: keep web provider key for current process`.

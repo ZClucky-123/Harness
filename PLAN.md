@@ -1050,3 +1050,44 @@ git commit -m "docs: add distribution ci and process documentation"
   - Commit: `4534a00`
 - [x] **Step 5: Record final commit hashes and lessons**
   - Commit: `385b0a5`
+
+---
+
+## Task 14: Docker Live Provider Credential Handling
+
+**Started:** 2026-07-13 19:20:00 +08:00
+
+**Subagent:** Codex(main)
+
+**Manual intervention:** User validated Docker build/run locally, reported Provider Settings `Save provider` behavior in Docker, and clarified that frontend API key entry should work without OS keyring persistence.
+
+**Files:**
+- Modify: `src/guarded_harness/config/schema.py`
+- Modify: `src/guarded_harness/config/loader.py`
+- Modify: `src/guarded_harness/web/app.py`
+- Modify: `src/guarded_harness/web/templates/settings.html`
+- Modify: `src/guarded_harness/web/static/styles.css`
+- Modify: `tests/integration/test_web.py`
+- Modify: `README.md`
+- Modify: `AGENT_LOG.md`
+- Modify: `SPEC_PROCESS.md`
+- Modify: `PLAN.md`
+
+- [x] **Step 1: Reproduce and diagnose Docker keyring failure**
+  - Result: Docker containers generally lack a usable OS keyring; `CredentialStore.set_key()` failure escaped as 500.
+  - Commit: `459ba7a`
+- [x] **Step 2: Add failing tests for keyring failure and Docker env key**
+  - Result: Tests failed before implementation with `RuntimeError: keyring unavailable` and missing key behavior.
+  - Commit: `459ba7a`
+- [x] **Step 3: Handle keyring failure and support `GUARDED_HARNESS_API_KEY`**
+  - Result: Settings page now shows a 400 error without leaking the key; Docker can use env-injected API keys.
+  - Commit: `459ba7a`
+- [x] **Step 4: Add failing test for Settings-entered temporary key**
+  - Result: Test proved the prior behavior returned to Chat with `key missing`.
+  - Commit: `4e33334`
+- [x] **Step 5: Keep frontend-entered key in current Web process only**
+  - Result: Unpersisted Settings key powers later live Chat sessions in the same process, without disk/SQLite/audit/page persistence.
+  - Commit: `4e33334`
+- [x] **Step 6: Verify and document**
+  - Result: `262 passed, 2 skipped`; `compileall src tests` passed; `git diff --check` passed; Docker build passed after retrying a Docker Desktop BuildKit cache error.
+  - Commit: this documentation commit

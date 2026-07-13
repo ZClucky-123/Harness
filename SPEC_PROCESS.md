@@ -62,3 +62,11 @@ WebUI 原先直接使用 Jinja `tojson` 展示 trace payload，导致中文在�
 ## 后期 UI 重构：本地 Agent Console
 
 进一步将 WebUI 拆为 Dashboard、Provider Settings、Session Trace、Approvals Queue 和 Guardrail Demo。Provider Settings 只持久化非敏感配置，API key 仍由 keyring 管理；Dashboard 只负责启动任务，避免每次对话重复输入 API 配置。Approvals Queue 强化 HITL 状态机展示，Guardrail Demo 则给评审者提供一个无需真实 LLM 的确定性机制演示入口。
+
+## Docker 验证后的凭据处理修正
+
+在 Docker 环境中实测 WebUI 后，发现容器内通常没有可用的桌面 OS keyring。原实现把 Provider Settings 中勾选保存 key 的失败直接暴露为 FastAPI 500，虽然没有泄露 secret，但不符合可演示交付的可用性要求。修复后，keyring 保存失败会回到设置页显示明确错误；同时支持 `GUARDED_HARNESS_API_KEY` 作为 Docker/live provider 的环境变量入口。
+
+进一步的前端验证显示，用户在 Provider Settings 输入 API key 但不勾选保存时，非敏感 provider 配置会保存，key 本身不会被后续 Chat 使用。这一行为虽然安全，但在 Docker 中不实用。最终策略是把未保存的 key 仅保留在当前 FastAPI 进程内：它不进入 `provider.json`、SQLite、审计事件、日志或页面源码，容器重启后自然失效。这样同时满足演示可用性和“API key 不落盘、不入审计”的作业安全要求。
+
+本轮修复通过新增 Web 集成测试验证：keyring 不可用时不再 500，环境变量 key 可驱动 live provider，Settings 中临时输入的 key 可供当前进程的后续 Chat 使用且不持久化。最终本地验证结果为 `262 passed, 2 skipped`，`compileall src tests` 通过，Docker 镜像在 Docker Desktop 缓存异常后重试构建通过。
