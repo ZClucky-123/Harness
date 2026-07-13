@@ -416,6 +416,7 @@ def _render_settings(
     store: SQLiteStore,
     root: Path,
     settings: dict[str, str] | None = None,
+    credential_configured: bool | None = None,
     credential_error: str | None = None,
     status_code: int = 200,
 ):
@@ -426,7 +427,7 @@ def _render_settings(
         {
             "title": "Provider Settings",
             "settings": settings or _load_provider_settings(root),
-            "credential_configured": _credential_configured(),
+            "credential_configured": _credential_configured() if credential_configured is None else credential_configured,
             "credential_error": credential_error,
             "pending_approval_count": _pending_approval_count(store),
             "sidebar_groups": _sidebar_groups(conversation_items),
@@ -439,13 +440,17 @@ def create_app(store_path: Path | None = None, workspace_root: Path | None = Non
     """Create a local, deterministic WebUI backed by a workspace-local store."""
     store, root = _store_for(store_path, workspace_root)
     live_session_keys: dict[str, str] = {}
+    provider_api_key: str | None = None
     app = FastAPI(title="Guarded Harness")
     app.mount("/static", StaticFiles(directory=str(_PACKAGE_DIR / "static")), name="static")
+
+    def has_provider_key() -> bool:
+        return provider_api_key is not None or _credential_configured()
 
     @app.get("/")
     def index(request: Request):
         settings = _load_provider_settings(root)
-        credential_configured = _credential_configured()
+        credential_configured = has_provider_key()
         conversation_items = _conversation_items(store)
         chat_items = list(reversed(conversation_items))
         return _TEMPLATES.TemplateResponse(
@@ -465,7 +470,7 @@ def create_app(store_path: Path | None = None, workspace_root: Path | None = Non
 
     @app.get("/settings")
     def settings(request: Request):
-        return _render_settings(request, store, root)
+        return _render_settings(request, store, root, credential_configured=has_provider_key())
 
     @app.post("/settings")
     def save_settings(
@@ -476,19 +481,25 @@ def create_app(store_path: Path | None = None, workspace_root: Path | None = Non
         api_key: str = Form(""),
         save_api_key: str | None = Form(None),
     ):
+        nonlocal provider_api_key
         settings = _save_provider_settings(root, mode, base_url, model)
-        if api_key.strip() and save_api_key:
-            try:
-                _credential_store().set_key(api_key.strip())
-            except Exception as exc:
-                return _render_settings(
-                    request,
-                    store,
-                    root,
-                    settings=settings,
-                    credential_error=f"Could not save API key: {exc}",
-                    status_code=400,
-                )
+        submitted_key = api_key.strip()
+        if submitted_key:
+            if save_api_key:
+                try:
+                    _credential_store().set_key(submitted_key)
+                except Exception as exc:
+                    return _render_settings(
+                        request,
+                        store,
+                        root,
+                        settings=settings,
+                        credential_configured=has_provider_key(),
+                        credential_error=f"Could not save API key: {exc}",
+                        status_code=400,
+                    )
+            else:
+                provider_api_key = submitted_key
         return RedirectResponse(url="/", status_code=303)
 
     @app.post("/sessions")
@@ -505,7 +516,8 @@ def create_app(store_path: Path | None = None, workspace_root: Path | None = Non
         selected_base_url = base_url or settings["base_url"]
         selected_model = model or settings["model"]
         if selected_mode == "live":
-            provider = _live_provider(selected_base_url, selected_model, api_key, save_api_key)
+            submitted_key = api_key.strip()
+            provider = _live_provider(selected_base_url, selected_model, submitted_key or provider_api_key or "", save_api_key)
             session = _loop_for_provider(root, store, provider).run(task)
         else:
             session = _finish_loop(root, store, "mock run completed").run(task)
@@ -514,8 +526,10 @@ def create_app(store_path: Path | None = None, workspace_root: Path | None = Non
             session.id,
             {"mode": selected_mode, "base_url": selected_base_url, "model": selected_model},
         )
-        if selected_mode == "live" and api_key.strip():
-            live_session_keys[session.id] = api_key.strip()
+        if selected_mode == "live":
+            session_key = api_key.strip() or provider_api_key
+            if session_key:
+                live_session_keys[session.id] = session_key
         return RedirectResponse(url="/", status_code=303)
 
     @app.get("/sessions/{session_id}")

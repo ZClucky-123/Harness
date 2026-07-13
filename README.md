@@ -58,7 +58,8 @@ GUARDED_HARNESS_BASE_URL = https://njusehub.info/v1
 GUARDED_HARNESS_MODEL = deepseek-v4-flash
 ```
 
-API key 可在页面临时输入，也可勾选保存到 OS keyring。页面不会回显 key，session 与审计轨迹也不会持久化 key。
+API key 可在页面输入；不勾选保存时仅保存在当前 Web 进程内，容器或服务重启后失效。
+也可勾选保存到 OS keyring。页面不会回显 key，session 与审计轨迹也不会持久化 key。
 
 ## Mock 演示
 
@@ -95,6 +96,9 @@ docker run --rm -p 8000:8000 `
   -e GUARDED_HARNESS_API_KEY=你的_API_KEY `
   guarded-harness
 ```
+
+也可以在 WebUI 的 Provider Settings 中输入 API key 并不勾选保存；该 key 只在当前容器进程内临时有效，
+不会写入磁盘或审计记录。重启容器后需要重新输入。
 
 ## 凭据与安全边界
 

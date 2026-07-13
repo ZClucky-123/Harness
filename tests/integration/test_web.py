@@ -504,6 +504,53 @@ def test_starting_task_uses_saved_live_settings_without_retyping_key(tmp_path: P
     }
 
 
+def test_settings_can_keep_submitted_key_for_current_web_process_without_persisting(
+    tmp_path: Path, monkeypatch
+):
+    credentials = _FakeCredentials(None)
+    captured = {}
+
+    class FakeProvider:
+        def __init__(self, base_url: str, model: str, api_key: str, timeout: float):
+            captured.update({"base_url": base_url, "model": model, "api_key": api_key, "timeout": timeout})
+
+        def complete(self, context):
+            return '{"type":"finish","message":"live done with temporary key"}'
+
+    monkeypatch.setattr("guarded_harness.web.app._credential_store", lambda: credentials)
+    monkeypatch.setattr("guarded_harness.web.app.OpenAICompatibleProvider", FakeProvider)
+    client = TestClient(create_app(tmp_path / "state.sqlite3", workspace_root=tmp_path))
+
+    settings_response = client.post(
+        "/settings",
+        data={
+            "mode": "live",
+            "base_url": "https://njusehub.info/v1",
+            "model": "deepseek-v4-flash",
+            "api_key": "temporary-settings-secret",
+        },
+        follow_redirects=True,
+    )
+    run_response = client.post("/sessions", data={"task": "use temporary provider key"}, follow_redirects=True)
+
+    assert settings_response.status_code == 200
+    assert "key configured" in settings_response.text
+    assert run_response.status_code == 200
+    assert "live done with temporary key" in run_response.text
+    assert captured == {
+        "base_url": "https://njusehub.info/v1",
+        "model": "deepseek-v4-flash",
+        "api_key": "temporary-settings-secret",
+        "timeout": 30.0,
+    }
+    assert credentials.key is None
+    assert "temporary-settings-secret" not in run_response.text
+    assert "temporary-settings-secret" not in (tmp_path / ".guarded-harness" / "provider.json").read_text()
+    assert "temporary-settings-secret" not in (tmp_path / "state.sqlite3").read_bytes().decode(
+        "utf-8", errors="ignore"
+    )
+
+
 def test_session_page_preserves_chinese_text_in_task_and_trace(tmp_path: Path):
     store = SQLiteStore(tmp_path / "state.sqlite3", workspace_root=tmp_path)
     session = store.create_session("回复1+1+?", tmp_path)
