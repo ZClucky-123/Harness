@@ -136,6 +136,10 @@ def _provider_status(settings: dict[str, str], credential_configured: bool) -> s
     return f"{mode_label} · {settings['model']} · {key_label}"
 
 
+def _credential_configured() -> bool:
+    return _credential_store().status() or load_config().api_key is not None
+
+
 def _status_label(status: str) -> str:
     return {
         "running": "running",
@@ -407,6 +411,30 @@ def _session_summary(events) -> str:
     return "session started"
 
 
+def _render_settings(
+    request: Request,
+    store: SQLiteStore,
+    root: Path,
+    settings: dict[str, str] | None = None,
+    credential_error: str | None = None,
+    status_code: int = 200,
+):
+    conversation_items = _conversation_items(store)
+    return _TEMPLATES.TemplateResponse(
+        request,
+        "settings.html",
+        {
+            "title": "Provider Settings",
+            "settings": settings or _load_provider_settings(root),
+            "credential_configured": _credential_configured(),
+            "credential_error": credential_error,
+            "pending_approval_count": _pending_approval_count(store),
+            "sidebar_groups": _sidebar_groups(conversation_items),
+        },
+        status_code=status_code,
+    )
+
+
 def create_app(store_path: Path | None = None, workspace_root: Path | None = None) -> FastAPI:
     """Create a local, deterministic WebUI backed by a workspace-local store."""
     store, root = _store_for(store_path, workspace_root)
@@ -417,7 +445,7 @@ def create_app(store_path: Path | None = None, workspace_root: Path | None = Non
     @app.get("/")
     def index(request: Request):
         settings = _load_provider_settings(root)
-        credential_configured = _credential_store().status()
+        credential_configured = _credential_configured()
         conversation_items = _conversation_items(store)
         chat_items = list(reversed(conversation_items))
         return _TEMPLATES.TemplateResponse(
@@ -437,30 +465,30 @@ def create_app(store_path: Path | None = None, workspace_root: Path | None = Non
 
     @app.get("/settings")
     def settings(request: Request):
-        conversation_items = _conversation_items(store)
-        return _TEMPLATES.TemplateResponse(
-            request,
-            "settings.html",
-            {
-                "title": "Provider Settings",
-                "settings": _load_provider_settings(root),
-                "credential_configured": _credential_store().status(),
-                "pending_approval_count": _pending_approval_count(store),
-                "sidebar_groups": _sidebar_groups(conversation_items),
-            },
-        )
+        return _render_settings(request, store, root)
 
     @app.post("/settings")
     def save_settings(
+        request: Request,
         mode: str = Form("mock"),
         base_url: str = Form(_DEFAULT_BASE_URL),
         model: str = Form(_DEFAULT_MODEL),
         api_key: str = Form(""),
         save_api_key: str | None = Form(None),
     ):
-        _save_provider_settings(root, mode, base_url, model)
+        settings = _save_provider_settings(root, mode, base_url, model)
         if api_key.strip() and save_api_key:
-            _credential_store().set_key(api_key.strip())
+            try:
+                _credential_store().set_key(api_key.strip())
+            except Exception as exc:
+                return _render_settings(
+                    request,
+                    store,
+                    root,
+                    settings=settings,
+                    credential_error=f"Could not save API key: {exc}",
+                    status_code=400,
+                )
         return RedirectResponse(url="/", status_code=303)
 
     @app.post("/sessions")
@@ -599,12 +627,15 @@ def create_app(store_path: Path | None = None, workspace_root: Path | None = Non
 
 def _live_provider(base_url: str, model: str, api_key: str, save_api_key: str | None) -> OpenAICompatibleProvider:
     credentials = _credential_store()
-    resolved_key = api_key.strip() or credentials.get_key()
+    config = load_config()
+    resolved_key = api_key.strip() or credentials.get_key() or config.api_key
     if resolved_key is None:
         raise HTTPException(status_code=400, detail="API key is required for live mode")
     if api_key.strip() and save_api_key:
-        credentials.set_key(api_key.strip())
-    config = load_config()
+        try:
+            credentials.set_key(api_key.strip())
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=f"Could not save API key: {exc}") from exc
     return OpenAICompatibleProvider(
         base_url.strip() or _DEFAULT_BASE_URL,
         model.strip() or _DEFAULT_MODEL,

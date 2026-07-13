@@ -66,6 +66,7 @@ p { color: #737373; line-height: 1.5; }
 .composer-submit:disabled .composer-stop-icon { background: #fff; }
 .composer-backdrop { position: fixed; left: calc(var(--sidebar-width) + (100vw - var(--sidebar-width) - 32px) / 2); bottom: 0; z-index: 19; width: min(var(--content-width), calc(100vw - var(--sidebar-width) - 32px)); transform: translateX(-50%); height: 80px; background: #fff; }
 .run-status, .empty-state { color: #737373; font-size: 14px; }
+.form-error { margin: 0 0 16px; color: #b00020; font-size: 14px; }
 .approval-card { margin: 12px 0; padding: 12px; border: 1px solid #facc15; border-radius: 12px; background: #fffbeb; }
 .approval-card h3 { margin: 0 0 8px; font-size: 16px; }
 .approval-processing-status { margin: 0 0 8px; color: #737373; font-size: 14px; }

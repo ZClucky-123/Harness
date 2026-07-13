@@ -435,6 +435,30 @@ def test_provider_settings_save_updates_dashboard_without_persisting_key(tmp_pat
     assert "settings-secret" not in (tmp_path / ".guarded-harness" / "provider.json").read_text()
 
 
+def test_provider_settings_save_reports_keyring_failure_without_500(tmp_path: Path, monkeypatch):
+    credentials = _FailingCredentials()
+    monkeypatch.setattr("guarded_harness.web.app._credential_store", lambda: credentials)
+    client = TestClient(create_app(tmp_path / "state.sqlite3", workspace_root=tmp_path))
+
+    response = client.post(
+        "/settings",
+        data={
+            "mode": "live",
+            "base_url": "https://njusehub.info/v1",
+            "model": "deepseek-v4-flash",
+            "api_key": "settings-secret",
+            "save_api_key": "on",
+        },
+    )
+
+    assert response.status_code == 400
+    assert "Provider Settings" in response.text
+    assert "Could not save API key" in response.text
+    assert "keyring unavailable" in response.text
+    assert "settings-secret" not in response.text
+    assert "settings-secret" not in (tmp_path / ".guarded-harness" / "provider.json").read_text()
+
+
 def test_starting_task_returns_to_workspace_with_saved_conversation(tmp_path: Path):
     client = TestClient(create_app(tmp_path / "state.sqlite3", workspace_root=tmp_path))
 
@@ -530,6 +554,44 @@ def test_web_live_mode_requires_api_key_when_keyring_empty(tmp_path: Path, monke
 
     assert response.status_code == 400
     assert "API key is required" in response.text
+
+
+def test_web_live_mode_uses_environment_api_key_when_keyring_empty(tmp_path: Path, monkeypatch):
+    captured = {}
+
+    class FakeProvider:
+        def __init__(self, base_url: str, model: str, api_key: str, timeout: float):
+            captured.update({"base_url": base_url, "model": model, "api_key": api_key, "timeout": timeout})
+
+        def complete(self, context):
+            return '{"type":"finish","message":"env live done"}'
+
+    monkeypatch.setenv("GUARDED_HARNESS_API_KEY", "env-live-secret")
+    monkeypatch.setattr("guarded_harness.web.app.OpenAICompatibleProvider", FakeProvider)
+    monkeypatch.setattr("guarded_harness.web.app._credential_store", lambda: _FakeCredentials(None))
+    client = TestClient(create_app(tmp_path / "state.sqlite3", workspace_root=tmp_path))
+
+    response = client.post(
+        "/sessions",
+        data={
+            "task": "reply from env",
+            "mode": "live",
+            "base_url": "https://njusehub.info/v1",
+            "model": "deepseek-v4-flash",
+        },
+        follow_redirects=True,
+    )
+
+    assert response.status_code == 200
+    assert "env live done" in response.text
+    assert captured == {
+        "base_url": "https://njusehub.info/v1",
+        "model": "deepseek-v4-flash",
+        "api_key": "env-live-secret",
+        "timeout": 30.0,
+    }
+    assert "env-live-secret" not in response.text
+    assert "env-live-secret" not in (tmp_path / "state.sqlite3").read_bytes().decode("utf-8", errors="ignore")
 
 
 def test_web_live_mode_uses_submitted_provider_config_without_persisting_key(tmp_path: Path, monkeypatch):
@@ -948,6 +1010,17 @@ class _FakeCredentials:
 
     def status(self) -> bool:
         return self.key is not None
+
+
+class _FailingCredentials:
+    def get_key(self) -> str | None:
+        return None
+
+    def set_key(self, key: str) -> None:
+        raise RuntimeError("keyring unavailable")
+
+    def status(self) -> bool:
+        return False
 
 
 class _FinishingProvider:

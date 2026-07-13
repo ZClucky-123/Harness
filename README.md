@@ -9,17 +9,19 @@ Guarded Harness 是一个本地 coding-agent harness。它把 LLM 的结构化 a
 需要 Python 3.11 或更高版本。
 
 ```powershell
+python --version
+# 确认是 Python 3.11 或更高版本后再执行：
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
-pip install -e ".[dev]"
+python -m pip install -e ".[dev]"
 ```
 
 运行全部测试：
 
 ```powershell
-pytest
-python -m compileall -q src
+python -m pytest -q
+python -m compileall -q src tests
 ```
 
 ## 本地 CLI
@@ -84,12 +86,22 @@ docker run --rm -p 8000:8000 guarded-harness
 容器启动后访问 `http://localhost:8000`。如需保留 session 数据，可额外挂载一个
 workspace 卷；请只挂载你允许 harness 访问的目录。
 
+Docker 容器通常没有可用的桌面 OS keyring。若要在容器中使用 live provider，推荐用环境变量注入 key：
+
+```powershell
+docker run --rm -p 8000:8000 `
+  -e GUARDED_HARNESS_BASE_URL=https://njusehub.info/v1 `
+  -e GUARDED_HARNESS_MODEL=deepseek-v4-flash `
+  -e GUARDED_HARNESS_API_KEY=你的_API_KEY `
+  guarded-harness
+```
+
 ## 凭据与安全边界
 
 - `harness credentials set` 使用操作系统 keyring 保存 API key；状态命令只输出是否已配置。
 - live mode 读取 `GUARDED_HARNESS_BASE_URL`、`GUARDED_HARNESS_MODEL` 与
-  `GUARDED_HARNESS_TIMEOUT` 环境变量。API key 不应写入仓库、日志、审计记录、CLI
-  输出或 Web 页面。
+  `GUARDED_HARNESS_TIMEOUT` 环境变量；Docker 等无 keyring 环境可使用
+  `GUARDED_HARNESS_API_KEY` 注入 API key。API key 不应写入仓库、日志、审计记录、CLI 输出或 Web 页面。
 - `.env` 是明文文件，只应作为本地开发 fallback；它已被 `.gitignore` 忽略，但仍可能被
   备份、终端历史或误挂载卷泄露。不要提交、共享或在不受信任目录中创建它。
 - 所有文件 action 都受 workspace root 约束。破坏性系统命令、workspace 外写入、`git push`、

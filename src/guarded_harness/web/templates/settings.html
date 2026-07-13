@@ -42,6 +42,9 @@
           <p>{% if credential_configured %}key configured{% else %}key missing{% endif %}</p>
         </section>
         <form class="settings-card" action="/settings" method="post">
+          {% if credential_error %}
+            <p class="form-error">{{ credential_error }}</p>
+          {% endif %}
           <fieldset>
             <legend>Mode</legend>
             <div class="mode-grid">
