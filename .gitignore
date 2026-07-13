@@ -1,2 +1,13 @@
 .worktrees
 .worktrees/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+dist/
+build/
+*.egg-info/
+.env
+*.sqlite3
+.guarded-harness/
+.superpowers/

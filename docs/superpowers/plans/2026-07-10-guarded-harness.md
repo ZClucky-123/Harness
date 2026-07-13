@@ -227,7 +227,7 @@ git commit -m "feat: scaffold core action models"
 - Produces: `resolve_approval(approval_id: str, approved: bool) -> ApprovalRequest`
 - Produces: `add_memory(kind: str, content: str, tags: list[str]) -> MemoryEntry`
 
-- [ ] **Step 1: Write failing persistence tests**
+- [x] **Step 1: Write failing persistence tests**
 
 Create `tests/unit/test_store.py`:
 
@@ -269,13 +269,13 @@ def test_memory_round_trip(tmp_path: Path):
     assert entries[0].content == "Never edit .env without approval"
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `pytest tests/unit/test_store.py -q`
 
 Expected: FAIL with `ModuleNotFoundError` or missing `SQLiteStore`.
 
-- [ ] **Step 3: Implement SQLite schema and dataclasses**
+- [x] **Step 3: Implement SQLite schema and dataclasses**
 
 Implement tables in `SQLiteStore._init_schema()`:
 
@@ -315,13 +315,13 @@ CREATE TABLE IF NOT EXISTS memory_entries (
 );
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `pytest tests/unit/test_store.py -q`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/guarded_harness/governance src/guarded_harness/memory src/guarded_harness/core/sessions.py tests/unit/test_store.py
@@ -343,7 +343,7 @@ git commit -m "feat: add sqlite state store"
 - Produces: `PolicyDecision(decision: DecisionType, risk_level: str, reason: str)`
 - Produces: `Guardrail(workspace_root: Path).evaluate(action: Action) -> PolicyDecision`
 
-- [ ] **Step 1: Write failing guardrail tests**
+- [x] **Step 1: Write failing guardrail tests**
 
 Create `tests/unit/test_guardrail.py`:
 
@@ -391,13 +391,13 @@ def test_allow_write_inside_workspace(tmp_path: Path):
     assert decision.decision == DecisionType.ALLOW
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `pytest tests/unit/test_guardrail.py -q`
 
 Expected: FAIL with missing `Guardrail`.
 
-- [ ] **Step 3: Implement policy rules**
+- [x] **Step 3: Implement policy rules**
 
 Implement:
 
@@ -406,13 +406,13 @@ Implement:
 - approval for `git push`, `pip install`, `npm install`, `twine upload`, `docker push`, file deletion inside workspace, `.env` modification
 - path resolution with `Path.resolve()` and prefix check against `workspace_root.resolve()`
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `pytest tests/unit/test_guardrail.py -q`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/guarded_harness/governance/policies.py src/guarded_harness/governance/guardrail.py tests/unit/test_guardrail.py
@@ -435,7 +435,7 @@ git commit -m "feat: add deterministic guardrail policies"
 - Produces: `ToolDispatcher(workspace_root: Path, test_command: list[str])`
 - Produces: `dispatch(action: Action) -> Observation`
 
-- [ ] **Step 1: Write failing dispatcher tests**
+- [x] **Step 1: Write failing dispatcher tests**
 
 Create `tests/unit/test_dispatcher.py`:
 
@@ -476,13 +476,13 @@ def test_run_shell_command_error(tmp_path: Path):
     assert obs.feedback_kind == FeedbackKind.COMMAND_ERROR
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `pytest tests/unit/test_dispatcher.py -q`
 
 Expected: FAIL with missing dispatcher.
 
-- [ ] **Step 3: Implement tools**
+- [x] **Step 3: Implement tools**
 
 Implement file read/write with workspace path resolution.
 
@@ -501,13 +501,13 @@ subprocess.run(
 
 Return `Observation(success=returncode == 0, feedback_kind=...)`.
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `pytest tests/unit/test_dispatcher.py -q`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/guarded_harness/tools tests/unit/test_dispatcher.py
@@ -533,7 +533,7 @@ git commit -m "feat: add guarded tool dispatcher"
 - Produces: `AgentLoop.run(task: str) -> SessionState`
 - Produces: `AgentLoop.resume_after_approval(approval_id: str, approved: bool) -> SessionState`
 
-- [ ] **Step 1: Write failing integration tests**
+- [x] **Step 1: Write failing integration tests**
 
 Create `tests/integration/test_loop_guardrail.py`:
 
@@ -582,13 +582,13 @@ def test_feedback_changes_next_mock_action(tmp_path: Path):
     assert any("command_error" in str(event.payload) for event in events)
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `pytest tests/integration/test_loop_guardrail.py tests/integration/test_loop_feedback.py -q`
 
 Expected: FAIL with missing `AgentLoop`.
 
-- [ ] **Step 3: Implement loop**
+- [x] **Step 3: Implement loop**
 
 Implement `AgentLoop.run()`:
 
@@ -605,13 +605,13 @@ Implement `MockLLM` as an ordered response queue and store received contexts for
 
 Implement `openai_compatible.py` as optional provider using `httpx`, reading key through credential layer later.
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `pytest tests/integration/test_loop_guardrail.py tests/integration/test_loop_feedback.py -q`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/guarded_harness/llm src/guarded_harness/core/loop.py tests/integration
@@ -633,7 +633,7 @@ git commit -m "feat: add mockable agent loop"
 - Produces: persisted pending approval state
 - Produces: deny feedback as `approval_denied`
 
-- [ ] **Step 1: Write failing HITL tests**
+- [x] **Step 1: Write failing HITL tests**
 
 Create `tests/integration/test_hitl.py`:
 
@@ -674,13 +674,13 @@ def test_deny_approval_feeds_back_and_finishes(tmp_path: Path):
     assert any("approval_denied" in str(event.payload) for event in events)
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `pytest tests/integration/test_hitl.py -q`
 
 Expected: FAIL because resume or approval listing is incomplete.
 
-- [ ] **Step 3: Implement HITL persistence and resume**
+- [x] **Step 3: Implement HITL persistence and resume**
 
 Implement:
 
@@ -690,13 +690,13 @@ Implement:
 - `resume_after_approval(approval_id, approved=True)` executes paused action
 - `resume_after_approval(approval_id, approved=False)` appends `approval_denied` observation and continues the LLM loop
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `pytest tests/integration/test_hitl.py -q`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/guarded_harness/core/loop.py src/guarded_harness/governance/approvals.py src/guarded_harness/memory/store.py tests/integration/test_hitl.py
@@ -721,7 +721,7 @@ git commit -m "feat: implement hitl approval state machine"
 - Produces: commands `demo guardrail`, `demo hitl`, `demo feedback`, `approvals list`, `approvals approve`, `approvals deny`
 - Produces: `CredentialStore.set_key`, `CredentialStore.status`, `CredentialStore.clear_key`
 
-- [ ] **Step 1: Write failing CLI tests**
+- [x] **Step 1: Write failing CLI tests**
 
 Create `tests/integration/test_cli.py`:
 
@@ -749,13 +749,13 @@ def test_feedback_demo_command():
     assert "changed action" in result.stdout
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `pytest tests/integration/test_cli.py -q`
 
 Expected: FAIL with missing `cli.py`.
 
-- [ ] **Step 3: Implement CLI**
+- [x] **Step 3: Implement CLI**
 
 Implement Typer command groups:
 
@@ -773,13 +773,13 @@ Implement Typer command groups:
 
 Credential status must print only configured/not configured, never key value.
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `pytest tests/integration/test_cli.py -q`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/guarded_harness/cli.py src/guarded_harness/config demo/README.md tests/integration/test_cli.py
@@ -803,7 +803,7 @@ git commit -m "feat: add cli demos and credentials"
 - Produces: `create_app(store_path: Path | None = None) -> FastAPI`
 - Produces: routes `GET /`, `POST /sessions`, `GET /sessions/{id}`, `GET /approvals`, `POST /approvals/{id}/approve`, `POST /approvals/{id}/deny`
 
-- [ ] **Step 1: Write failing WebUI tests**
+- [x] **Step 1: Write failing WebUI tests**
 
 Create `tests/integration/test_web.py`:
 
@@ -831,13 +831,13 @@ def test_approvals_page_loads():
     assert "Approvals" in response.text
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `pytest tests/integration/test_web.py -q`
 
 Expected: FAIL with missing web app.
 
-- [ ] **Step 3: Implement minimal WebUI**
+- [x] **Step 3: Implement minimal WebUI**
 
 Implement simple server-rendered HTML pages:
 
@@ -847,13 +847,13 @@ Implement simple server-rendered HTML pages:
 
 Do not add a large frontend build system.
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `pytest tests/integration/test_web.py -q`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/guarded_harness/web tests/integration/test_web.py
@@ -878,7 +878,7 @@ git commit -m "feat: add minimal approval webui"
 - Produces: documented install/run/test/Docker/security instructions
 - Produces: CI `unit-test` job
 
-- [ ] **Step 1: Write CI and Docker smoke expectations**
+- [x] **Step 1: Write CI and Docker smoke expectations**
 
 Create `.gitlab-ci.yml`:
 
@@ -921,7 +921,7 @@ EXPOSE 8000
 CMD ["uvicorn", "guarded_harness.web.app:create_app", "--factory", "--host", "0.0.0.0", "--port", "8000"]
 ```
 
-- [ ] **Step 2: Update README**
+- [x] **Step 2: Update README**
 
 README must include:
 
@@ -937,7 +937,7 @@ README must include:
 - known limitations
 - third-party licenses summary
 
-- [ ] **Step 3: Create process documents**
+- [x] **Step 3: Create process documents**
 
 Create `SPEC_PROCESS.md` with:
 
@@ -955,7 +955,7 @@ Create `AGENT_LOG.md` with current entries:
 - writing-plans skill usage
 - design spec commits `5641349` and `969e4ff`
 
-- [ ] **Step 4: Run full local verification**
+- [x] **Step 4: Run full local verification**
 
 Run:
 
@@ -971,7 +971,7 @@ Expected:
 - compileall exits 0
 - Docker image builds
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add README.md .gitlab-ci.yml Dockerfile SPEC_PROCESS.md AGENT_LOG.md PLAN.md docs/superpowers/plans/2026-07-10-guarded-harness.md

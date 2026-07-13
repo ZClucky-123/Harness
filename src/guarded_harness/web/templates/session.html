@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ title }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', path='styles.css') }}?v={{ static_version }}">
+</head>
+<body data-history-refresh="partial">
+  <main class="chat-page">
+    <header class="site-header">
+      <nav class="nav-links">
+        <a href="/">Chat</a>
+        <a href="/settings">Provider Settings</a>
+        <a href="/approvals">Approvals{% if pending_approval_count %}<span class="nav-count">{{ pending_approval_count }}</span>{% endif %}</a>
+      </nav>
+    </header>
+    <div class="app-layout">
+      <aside class="session-sidebar">
+        <a class="sidebar-brand" href="/">Guarded Harness</a>
+        <div class="sidebar-scroll">
+          {% for group in sidebar_groups %}
+            <section class="sidebar-group">
+              <h2>{{ group.label }}</h2>
+              <nav class="sidebar-list">
+                {% for item in group.sessions %}
+                  <a class="sidebar-item{% if item.active %} active{% endif %}" href="{{ item.trace_url }}">
+                    <span>{{ item.task }}</span>
+                    <small>{{ item.status_label }} · {{ item.step_label }}</small>
+                  </a>
+                {% endfor %}
+              </nav>
+            </section>
+          {% endfor %}
+        </div>
+      </aside>
+      <section class="chat-main">
+        <section class="hero">
+          <h1>Session Trace</h1>
+          <p>{{ display_task }}</p>
+        </section>
+        <dl class="meta-grid panel">
+          <dt>Task</dt><dd>{{ display_task }}</dd>
+          <dt>Status</dt><dd><span class="status-badge">[{{ status_label }}]</span></dd>
+          <dt>Steps</dt><dd>{{ session.step_count }}</dd>
+        </dl>
+        <section class="terminal-card panel">
+          <div class="traffic-lights"><span></span><span></span><span></span></div>
+          <h2>Trace</h2>
+          <ol class="trace">
+          {% for event in events %}
+            <li>
+              <div class="event-title">{{ loop.index }}. {{ event.event_type }}</div>
+              <pre>{{ event.payload | pretty_json }}</pre>
+            </li>
+          {% endfor %}
+          </ol>
+        </section>
+      </section>
+    </div>
+  </main>
+  {% include "_history_refresh.html" %}
+</body>
+</html>

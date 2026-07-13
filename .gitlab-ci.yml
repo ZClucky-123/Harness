@@ -1,0 +1,27 @@
+stages:
+  - test
+  - build
+
+unit-test:
+  stage: test
+  image: python:3.11-slim
+  script:
+    - python -m pip install --upgrade pip
+    - pip install -e ".[dev]"
+    - pytest
+    - python -m compileall src
+
+docker-build:
+  stage: build
+  image: docker:27
+  services:
+    - name: docker:27-dind
+      command: ["--tls=false"]
+  variables:
+    DOCKER_HOST: tcp://docker:2375
+    DOCKER_TLS_CERTDIR: ""
+  script:
+    - docker info
+    - docker build -t guarded-harness .
+  rules:
+    - if: '$CI_COMMIT_BRANCH'
