@@ -104,12 +104,19 @@ def test_allow_shell_command_without_path_side_effects(tmp_path: Path):
     assert decision.decision == DecisionType.ALLOW
 
 
-@pytest.mark.parametrize("command", ["dir", "type README.md", "del notes.txt", "rd build"])
-def test_deny_cmd_builtins_that_shell_false_cannot_execute(tmp_path: Path, command: str):
+@pytest.mark.parametrize("command", ["ls", "dir", "pwd", "cat README.md", "type README.md", "echo hello"])
+def test_allow_cross_platform_pseudo_shell_read_commands(tmp_path: Path, command: str):
     decision = Guardrail(tmp_path).evaluate(Action(ActionType.RUN_SHELL, {"command": command}))
 
-    assert decision.decision == DecisionType.DENY
-    assert "cmd built-in" in decision.reason
+    assert decision.decision == DecisionType.ALLOW
+
+
+@pytest.mark.parametrize("command", ["rm notes.txt", "rm -r build", "rm -rf build", "del notes.txt", "rd build", "rmdir build"])
+def test_require_approval_for_cross_platform_pseudo_shell_delete_commands(tmp_path: Path, command: str):
+    decision = Guardrail(tmp_path).evaluate(Action(ActionType.RUN_SHELL, {"command": command}))
+
+    assert decision.decision == DecisionType.NEEDS_APPROVAL
+    assert "approval" in decision.reason
 
 
 def test_deny_destructive_compound_and_wrapper_commands(tmp_path: Path):
@@ -139,16 +146,16 @@ def test_deny_destructive_commands_hidden_by_shell_wrappers(tmp_path: Path):
         assert "destructive" in decision.reason
 
 
-def test_split_single_ampersand_shell_commands(tmp_path: Path):
+def test_deny_single_ampersand_shell_commands(tmp_path: Path):
     guardrail = Guardrail(tmp_path)
 
     assert (
         guardrail.evaluate(Action(ActionType.RUN_SHELL, {"command": "echo ok & rm src/app.py"})).decision
-        == DecisionType.NEEDS_APPROVAL
+        == DecisionType.DENY
     )
     assert (
         guardrail.evaluate(Action(ActionType.RUN_SHELL, {"command": "echo ok & unknown-command"})).decision
-        == DecisionType.NEEDS_APPROVAL
+        == DecisionType.DENY
     )
 
 
@@ -195,10 +202,10 @@ def test_deny_alternative_dependency_installs(tmp_path: Path):
         assert guardrail.evaluate(Action(ActionType.RUN_SHELL, {"command": command})).decision == DecisionType.DENY
 
 
-def test_require_approval_for_shell_env_file_write(tmp_path: Path):
+def test_deny_shell_env_file_write_with_redirect(tmp_path: Path):
     decision = Guardrail(tmp_path).evaluate(Action(ActionType.RUN_SHELL, {"command": "echo MODE=local > .env"}))
 
-    assert decision.decision == DecisionType.NEEDS_APPROVAL
+    assert decision.decision == DecisionType.DENY
 
 
 def test_deny_relative_shell_paths_outside_workspace(tmp_path: Path):
@@ -360,11 +367,11 @@ def test_require_approval_for_shell_env_file_writers(tmp_path: Path):
         "echo safe && git status",
     ],
 )
-def test_shell_control_syntax_is_never_allowlisted(tmp_path: Path, command: str):
+def test_shell_control_syntax_is_denied_because_executor_cannot_run_it(tmp_path: Path, command: str):
     decision = Guardrail(tmp_path).evaluate(Action(ActionType.RUN_SHELL, {"command": command}))
 
-    assert decision.decision == DecisionType.NEEDS_APPROVAL
-    assert "shell syntax" in decision.reason
+    assert decision.decision == DecisionType.DENY
+    assert "not supported" in decision.reason
 
 
 def test_deny_shell_path_through_symlink_outside_workspace(tmp_path: Path):

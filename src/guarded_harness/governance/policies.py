@@ -45,7 +45,7 @@ def classify_shell_command(command: str, workspace_root: Path) -> PolicyDecision
     if has_control_syntax and _has_path_outside_workspace(command, workspace_root):
         return deny("shell path is outside workspace")
     if has_control_syntax:
-        return needs_approval("shell syntax requires approval and cannot be executed directly")
+        return deny("shell control syntax is not supported; run one command at a time")
     for segment in re.split(r"(?:&&|\|\||;|\||&)", command):
         decision = _classify_shell_segment(segment, workspace_root)
         if decision.decision is not DecisionType.ALLOW:
@@ -87,7 +87,7 @@ def _classify_shell_segment(command: str, workspace_root: Path) -> PolicyDecisio
 
 
 def _is_destructive(executable: str, arguments: list[str]) -> bool:
-    if executable in {"format", "del", "rd"} and (executable == "format" or "/s" in arguments):
+    if executable == "format":
         return True
     if executable == "mkfs" or executable.startswith("mkfs."):
         return True
@@ -111,7 +111,7 @@ def _requires_approval(executable: str, arguments: list[str]) -> bool:
         return True
     if executable in {"python", "python3"} and arguments[:3] == ["-m", "pip", "install"]:
         return True
-    return executable in {"rm", "del", "remove-item"}
+    return executable in {"rm", "del", "rd", "rmdir", "remove-item"}
 
 
 def _has_recursive_force(arguments: list[str]) -> bool:
@@ -185,7 +185,7 @@ def _writes_environment_file(command: str, executable: str, arguments: list[str]
 
 
 def _is_known_safe_command(executable: str, arguments: list[str]) -> bool:
-    if executable in {"cat", "ls", "pwd", "whoami", "findstr", "get-content", "get-childitem"}:
+    if executable in {"cat", "type", "ls", "dir", "pwd", "echo", "whoami", "findstr"}:
         return True
     if executable == "rg":
         return _is_safe_rg_argv(arguments)

@@ -27,7 +27,9 @@ _TEMPLATES.env.filters["pretty_json"] = lambda value: json.dumps(value, ensure_a
 _TEMPLATES.env.filters["markdown"] = lambda value: Markup(_render_markdown(str(value)))
 _DEFAULT_BASE_URL = "https://njusehub.info/v1"
 _DEFAULT_MODEL = "deepseek-v4-flash"
+_STATIC_VERSION = "20260713-loading-ui"
 _VALID_MODES = {"mock", "live"}
+_TEMPLATES.env.globals["static_version"] = _STATIC_VERSION
 
 
 def _credential_store() -> CredentialStore:
@@ -578,6 +580,10 @@ def create_app(store_path: Path | None = None, workspace_root: Path | None = Non
     def deny(approval_id: str):
         return _resume_approval(store, approval_id, approved=False, live_session_keys=live_session_keys)
 
+    @app.post("/approvals/{approval_id}/stop")
+    def stop(approval_id: str):
+        return _resume_approval(store, approval_id, approved=False, live_session_keys=live_session_keys, stop_task=True)
+
     @app.post("/approvals/{approval_id}/mark-failed")
     def mark_failed(approval_id: str, reason: str = Form(...)):
         try:
@@ -633,12 +639,13 @@ def _resume_approval(
     approval_id: str,
     approved: bool,
     live_session_keys: dict[str, str] | None = None,
+    stop_task: bool = False,
 ) -> RedirectResponse:
     try:
         approval = store.get_approval(approval_id)
         session = store.get_session(approval.session_id)
         provider_settings = _provider_settings_for_session(store, session.id)
-        if provider_settings is not None and provider_settings["mode"] == "live":
+        if not stop_task and provider_settings is not None and provider_settings["mode"] == "live":
             session_key = (live_session_keys or {}).get(session.id, "")
             loop = _loop_for_provider(
                 session.workspace,

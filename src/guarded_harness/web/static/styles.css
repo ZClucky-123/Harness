@@ -47,6 +47,7 @@ p { color: #737373; line-height: 1.5; }
 .markdown-body p { margin: 0 0 8px; color: #111; overflow-wrap: break-word; word-break: break-word; }
 .markdown-body ul { margin: 8px 0; padding-left: 20px; color: #111; }
 .markdown-body code { border-radius: 6px; background: #eee; padding: 2px 5px; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+.loading-placeholder { font-size: 28px; line-height: 1; letter-spacing: 0; color: #737373; }
 .message-user { justify-self: end; background: #f5f5f5; }
 .message-agent { justify-self: start; }
 .message-system { justify-self: center; color: #737373; background: #fafafa; border: 1px solid #e5e5e5; font-size: 14px; }
@@ -59,11 +60,15 @@ p { color: #737373; line-height: 1.5; }
 .composer fieldset { margin: 0; }
 .composer-row textarea { border: 0; outline: 0; padding: 4px 14px; overflow-y: hidden; }
 .composer-row textarea:focus { box-shadow: none; }
-.composer-submit { width: 28px; height: 28px; padding: 0; border-radius: 9999px; line-height: 1; }
+.composer-submit { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0; border-radius: 9999px; line-height: 1; }
+.composer-stop-icon { display: block; width: 10px; height: 10px; border-radius: 2px; background: #fff; }
+.composer-submit:disabled { opacity: 1; background: #000; cursor: default; }
+.composer-submit:disabled .composer-stop-icon { background: #fff; }
 .composer-backdrop { position: fixed; left: calc(var(--sidebar-width) + (100vw - var(--sidebar-width) - 32px) / 2); bottom: 0; z-index: 19; width: min(var(--content-width), calc(100vw - var(--sidebar-width) - 32px)); transform: translateX(-50%); height: 80px; background: #fff; }
 .run-status, .empty-state { color: #737373; font-size: 14px; }
 .approval-card { margin: 12px 0; padding: 12px; border: 1px solid #facc15; border-radius: 12px; background: #fffbeb; }
 .approval-card h3 { margin: 0 0 8px; font-size: 16px; }
+.approval-processing-status { margin: 0 0 8px; color: #737373; font-size: 14px; }
 .approval-card pre { margin: 8px 0; background: #fff; }
 .approval-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .approval-actions form { margin: 0; }
@@ -71,7 +76,8 @@ label { display: block; margin: 14px 0 6px; font-weight: 500; color: #000; }
 input[type="text"], input:not([type]), input[type="password"], textarea { box-sizing: border-box; width: 100%; border: 1px solid #e5e5e5; border-radius: 9999px; padding: 10px 16px; background: #fff; color: #000; font: inherit; }
 textarea { min-height: 36px; max-height: 180px; border-radius: 22px; resize: none; overflow-y: auto; }
 button, .button-primary { border: 0; border-radius: 9999px; background: #000; color: #fff; padding: 10px 20px; font: inherit; font-weight: 500; cursor: pointer; text-decoration: none; }
-button.deny { background: #fff; color: #991b1b; border: 1px solid #fecaca; }
+button.deny, button.deny-action { background: #fff; color: #525252; border: 1px solid #d4d4d4; }
+button.stop-task { background: #fff; color: #991b1b; border: 1px solid #fecaca; }
 pre { overflow-x: auto; white-space: pre-wrap; border-radius: 12px; background: #fafafa; padding: 16px; color: #000; }
 .traffic-lights { display: flex; gap: 6px; margin-bottom: 12px; }
 .traffic-lights span { width: 12px; height: 12px; border-radius: 9999px; display: inline-block; }

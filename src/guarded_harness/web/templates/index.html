@@ -4,9 +4,9 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{{ title }}</title>
-  <link rel="stylesheet" href="{{ url_for('static', path='styles.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', path='styles.css') }}?v={{ static_version }}">
 </head>
-<body>
+<body data-history-refresh="reload">
   <main class="chat-page">
     <header class="site-header">
       <nav class="nav-links">
@@ -55,16 +55,18 @@
                   <div class="markdown-body">{{ item.summary | markdown }}</div>
                   <p class="run-status">{{ item.status_label }} · {{ item.step_label }}</p>
                   {% if item.approval %}
-                    <div class="approval-card">
-                      <h3>Approval required</h3>
+                    <div class="approval-card" data-approval-card="{{ item.approval.id }}">
+                      <h3 data-approval-title>Approval required</h3>
+                      <p class="approval-processing-status" data-approval-status></p>
                       <p>Tool: {{ item.approval.tool }}</p>
                       <p>Action: {{ item.approval.operation }}</p>
                       {% if item.approval.target %}<p>Target: {{ item.approval.target }}</p>{% endif %}
                       <p>Risk: {{ item.approval.reason }}</p>
                       <pre>{{ item.approval.action_json }}</pre>
                       <div class="approval-actions">
-                        <form action="/approvals/{{ item.approval.id }}/approve" method="post"><button type="submit">Approve once</button></form>
-                        <form action="/approvals/{{ item.approval.id }}/deny" method="post"><button class="deny" type="submit">Deny</button></form>
+                        <form action="/approvals/{{ item.approval.id }}/approve" method="post" data-approval-submit="approve"><button type="submit">Approve once</button></form>
+                        <form action="/approvals/{{ item.approval.id }}/deny" method="post" data-approval-submit="deny-action"><button class="deny-action" type="submit">Deny action</button></form>
+                        <form action="/approvals/{{ item.approval.id }}/stop" method="post" data-approval-submit="stop-task"><button class="stop-task" type="submit">Stop task</button></form>
                       </div>
                     </div>
                   {% endif %}
@@ -81,6 +83,7 @@
 
     <form class="composer composer-fixed" action="/sessions" method="post">
       <fieldset>
+        <input id="task-submit-value" type="hidden">
         <div class="composer-row">
           <textarea id="task" name="task" rows="1" placeholder="Message Guarded Harness..." aria-label="Task" required></textarea>
         </div>
@@ -93,7 +96,43 @@
     <div class="composer-backdrop"></div>
   </main>
   <script>
+    const composerForm = document.querySelector(".composer");
     const taskInput = document.querySelector("#task");
+    const taskSubmitValue = document.querySelector("#task-submit-value");
+    const submitButton = document.querySelector(".composer-submit");
+    const conversationList = document.querySelector(".conversation-list");
+    let isSubmitting = false;
+    function appendOptimisticUserMessage(text) {
+      if (!conversationList) {
+        return;
+      }
+      const article = document.createElement("article");
+      article.className = "conversation-item conversation-item-pending";
+      const message = document.createElement("div");
+      message.className = "message message-user";
+      const paragraph = document.createElement("p");
+      paragraph.textContent = text;
+      message.append(paragraph);
+      article.append(message);
+      conversationList.append(article);
+      window.scrollTo({ top: document.body.scrollHeight, behavior: "instant" });
+    }
+    function appendOptimisticAgentMessage() {
+      if (!conversationList) {
+        return;
+      }
+      const article = document.createElement("article");
+      article.className = "conversation-item conversation-item-pending conversation-item-loading";
+      const message = document.createElement("div");
+      message.className = "message message-agent";
+      const body = document.createElement("div");
+      body.className = "markdown-body loading-placeholder";
+      body.textContent = "...";
+      message.append(body);
+      article.append(message);
+      conversationList.append(article);
+      window.scrollTo({ top: document.body.scrollHeight, behavior: "instant" });
+    }
     taskInput?.addEventListener("input", () => {
       taskInput.style.height = "auto";
       taskInput.style.height = `${Math.min(taskInput.scrollHeight, 180)}px`;
@@ -105,7 +144,92 @@
         taskInput.form?.requestSubmit();
       }
     });
+    composerForm?.addEventListener("submit", (event) => {
+      if (isSubmitting) {
+        event.preventDefault();
+        return;
+      }
+      if (!composerForm.checkValidity()) {
+        return;
+      }
+      taskSubmitValue.name = "task";
+      const submittedTask = taskInput.value;
+      taskSubmitValue.value = submittedTask;
+      taskInput.removeAttribute("name");
+      isSubmitting = true;
+      taskInput.value = "";
+      taskInput.style.height = "36px";
+      appendOptimisticUserMessage(submittedTask);
+      appendOptimisticAgentMessage();
+      submitButton.textContent = "";
+      const stopIcon = document.createElement("span");
+      stopIcon.className = "composer-stop-icon";
+      stopIcon.setAttribute("aria-hidden", "true");
+      submitButton.append(stopIcon);
+      submitButton.disabled = true;
+      submitButton.setAttribute("aria-label", "Task is running");
+      submitButton.setAttribute("aria-busy", "true");
+    });
+    document.querySelectorAll("[data-approval-card]").forEach((card) => {
+      let approvalSubmitting = false;
+      function approvalProcessingTitle(action) {
+        if (action === "stop-task") {
+          return "Stopping...";
+        }
+        return action === "deny-action" ? "Denying action..." : "Approving...";
+      }
+      function approvalProcessingStatus(action) {
+        if (action === "stop-task") {
+          return "Stopping task...";
+        }
+        return action === "deny-action" ? "Processing denial..." : "Processing approval...";
+      }
+      card.querySelectorAll("form[data-approval-submit]").forEach((form) => {
+        form.addEventListener("submit", async (event) => {
+          event.preventDefault();
+          if (approvalSubmitting) {
+            return;
+          }
+          approvalSubmitting = true;
+          const action = form.dataset.approvalSubmit;
+          const title = card.querySelector("[data-approval-title]");
+          const status = card.querySelector("[data-approval-status]");
+          title.textContent = approvalProcessingTitle(action);
+          status.textContent = approvalProcessingStatus(action);
+          card.querySelectorAll("button").forEach((button) => {
+            button.disabled = true;
+            button.setAttribute("aria-busy", "true");
+          });
+          try {
+            const response = await fetch(form.action, {
+              method: form.method || "POST",
+              body: new FormData(form),
+              credentials: "same-origin",
+              redirect: "follow",
+            });
+            if (response.redirected && response.url) {
+              window.location.assign(response.url);
+              return;
+            }
+            if (response.ok) {
+              window.location.reload();
+              return;
+            }
+            throw new Error(`Approval request failed with status ${response.status}`);
+          } catch (error) {
+            approvalSubmitting = false;
+            title.textContent = "Approval failed";
+            status.textContent = "The approval request did not complete. Try again.";
+            card.querySelectorAll("button").forEach((button) => {
+              button.disabled = false;
+              button.removeAttribute("aria-busy");
+            });
+          }
+        });
+      });
+    });
     window.scrollTo({ top: document.body.scrollHeight, behavior: "instant" });
   </script>
+  {% include "_history_refresh.html" %}
 </body>
 </html>

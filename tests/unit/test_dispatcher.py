@@ -81,6 +81,83 @@ def test_run_shell_command_error(tmp_path: Path):
     assert obs.feedback_kind == FeedbackKind.COMMAND_ERROR
 
 
+def test_pseudo_shell_lists_workspace_without_system_shell(tmp_path: Path):
+    (tmp_path / "alpha.txt").write_text("a", encoding="utf-8")
+    (tmp_path / "folder").mkdir()
+    dispatcher = ToolDispatcher(tmp_path, test_command=["python", "-c", "print('ok')"])
+
+    obs = dispatcher.dispatch(Action(ActionType.RUN_SHELL, {"command": "ls"}))
+
+    assert obs.success is True
+    assert obs.feedback_kind == FeedbackKind.TOOL_SUCCESS
+    assert "alpha.txt" in obs.stdout
+    assert "folder/" in obs.stdout
+    assert obs.message == "listed ."
+
+
+def test_pseudo_shell_lists_file_target_without_system_shell(tmp_path: Path):
+    (tmp_path / "test.md").write_text("restore me", encoding="utf-8")
+    dispatcher = ToolDispatcher(tmp_path, test_command=["python", "-c", "print('ok')"])
+
+    obs = dispatcher.dispatch(Action(ActionType.RUN_SHELL, {"command": "ls -la test.md"}))
+
+    assert obs.success is True
+    assert obs.feedback_kind == FeedbackKind.TOOL_SUCCESS
+    assert obs.stdout == "test.md\n"
+    assert obs.message == "listed test.md"
+    assert obs.metadata == {"path": "test.md", "entries": 1}
+
+
+@pytest.mark.parametrize("command", ["dir", "pwd", "cat README.md", "type README.md", "echo hello 中文"])
+def test_pseudo_shell_read_commands_execute_without_external_programs(tmp_path: Path, command: str):
+    (tmp_path / "README.md").write_text("中文 readme", encoding="utf-8")
+    dispatcher = ToolDispatcher(tmp_path, test_command=["python", "-c", "print('ok')"])
+
+    obs = dispatcher.dispatch(Action(ActionType.RUN_SHELL, {"command": command}))
+
+    assert obs.success is True
+    assert obs.feedback_kind == FeedbackKind.TOOL_SUCCESS
+    assert obs.stdout
+
+
+def test_pseudo_shell_delete_requires_approval_without_execution(tmp_path: Path):
+    target = tmp_path / "delete-me.txt"
+    target.write_text("remove", encoding="utf-8")
+    dispatcher = ToolDispatcher(tmp_path, test_command=["python", "-c", "print('ok')"])
+
+    obs = dispatcher.dispatch(Action(ActionType.RUN_SHELL, {"command": "rm delete-me.txt"}))
+
+    assert obs.success is False
+    assert obs.feedback_kind == FeedbackKind.APPROVAL_DENIED
+    assert target.exists()
+
+
+def test_approved_pseudo_shell_delete_removes_workspace_file(tmp_path: Path):
+    target = tmp_path / "delete-me.txt"
+    target.write_text("remove", encoding="utf-8")
+    dispatcher = ToolDispatcher(tmp_path, test_command=["python", "-c", "print('ok')"])
+
+    obs = dispatcher.dispatch_approved(Action(ActionType.RUN_SHELL, {"command": "rm delete-me.txt"}))
+
+    assert obs.success is True
+    assert obs.feedback_kind == FeedbackKind.TOOL_SUCCESS
+    assert obs.message == "deleted delete-me.txt"
+    assert not target.exists()
+
+
+def test_approved_pseudo_shell_recursive_delete_removes_workspace_directory(tmp_path: Path):
+    target = tmp_path / "build"
+    target.mkdir()
+    (target / "output.txt").write_text("remove", encoding="utf-8")
+    dispatcher = ToolDispatcher(tmp_path, test_command=["python", "-c", "print('ok')"])
+
+    obs = dispatcher.dispatch_approved(Action(ActionType.RUN_SHELL, {"command": "rm -r build"}))
+
+    assert obs.success is True
+    assert obs.message == "deleted build"
+    assert not target.exists()
+
+
 def test_run_shell_executes_structured_argv_without_shell(tmp_path: Path, monkeypatch):
     dispatcher = ToolDispatcher(tmp_path, test_command=["python", "-c", "print('ok')"])
     calls = []
@@ -250,8 +327,8 @@ def test_dispatcher_requires_approval_without_executing_shell(tmp_path: Path, mo
     assert "approval" in obs.message
 
 
-@pytest.mark.parametrize("command", ["dir", "type README.md", "del notes.txt", "rd build"])
-def test_dispatcher_denies_cmd_builtins_without_execution(tmp_path: Path, monkeypatch, command: str):
+@pytest.mark.parametrize("command", ["del notes.txt", "rd build"])
+def test_dispatcher_requires_approval_for_pseudo_shell_deletes_without_execution(tmp_path: Path, monkeypatch, command: str):
     dispatcher = ToolDispatcher(tmp_path, test_command=["python", "-c", "print('ok')"])
     calls = []
 
@@ -263,9 +340,27 @@ def test_dispatcher_denies_cmd_builtins_without_execution(tmp_path: Path, monkey
     obs = dispatcher.dispatch(Action(ActionType.RUN_SHELL, {"command": command}))
 
     assert obs.success is False
-    assert obs.feedback_kind == FeedbackKind.POLICY_DENIED
-    assert "cmd built-in" in obs.message
+    assert obs.feedback_kind == FeedbackKind.APPROVAL_DENIED
+    assert "approval" in obs.message
     assert calls == []
+
+
+def test_subprocess_shell_output_uses_utf8_with_replacement(tmp_path: Path, monkeypatch):
+    dispatcher = ToolDispatcher(tmp_path, test_command=["python", "-c", "print('ok')"])
+    calls = []
+
+    def record_execution(*args, **kwargs):
+        calls.append((args, kwargs))
+        return subprocess.CompletedProcess(args[0], 0, stdout="中文\n", stderr="")
+
+    monkeypatch.setattr("guarded_harness.tools.shell.subprocess.run", record_execution)
+
+    obs = dispatcher.dispatch(Action(ActionType.RUN_SHELL, {"command": "rg pattern"}))
+
+    assert obs.success is True
+    assert obs.stdout == "中文\n"
+    assert calls[0][1]["encoding"] == "utf-8"
+    assert calls[0][1]["errors"] == "replace"
 
 
 def test_dispatcher_denies_external_helper_options_without_execution(tmp_path: Path, monkeypatch):

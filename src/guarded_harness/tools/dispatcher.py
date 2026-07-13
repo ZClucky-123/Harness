@@ -41,11 +41,11 @@ class ToolDispatcher:
             decision = self.guardrail.evaluate(action)
             if decision.decision is not DecisionType.NEEDS_APPROVAL:
                 return Observation(False, FeedbackKind.POLICY_DENIED, message="action is not approval-gated")
-            return self._execute(action)
+            return self._execute(action, approved=True)
         except Exception as exc:
             return Observation(False, FeedbackKind.COMMAND_ERROR, message=str(exc))
 
-    def _execute(self, action: Action) -> Observation:
+    def _execute(self, action: Action, approved: bool = False) -> Observation:
         if action.type is ActionType.READ_FILE:
             return read_file(self.workspace_root, action.payload.get("path"))
         if action.type is ActionType.WRITE_FILE:
@@ -55,7 +55,7 @@ class ToolDispatcher:
                 action.payload.get("content"),
             )
         if action.type is ActionType.RUN_SHELL:
-            return run_shell(self.workspace_root, action.payload.get("command"))
+            return run_shell(self.workspace_root, action.payload.get("command"), approved=approved)
         if action.type is ActionType.RUN_TESTS:
             return run_tests(self.workspace_root, self.test_command)
         return Observation(False, FeedbackKind.COMMAND_ERROR, message="action is not a tool action")

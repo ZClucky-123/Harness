@@ -16,9 +16,13 @@
 - [x] Extend safe Markdown rendering for headings, blockquotes, links, code blocks, and simple tables.
 - [x] Add sidebar session grouping and active session highlighting.
 - [x] Add structured approval summaries for tool, operation, and target.
+- [x] Add cross-platform pseudo-shell support for `ls`/`dir`/`pwd`/`cat`/`type`/`echo` and approval-gated `rm`/`del`/`rd`/`rmdir`.
+- [x] Fix shell subprocess UTF-8 output decoding on Windows.
 - [x] Run full project verification.
 - [ ] Commit the batch.
 
 ## Remaining Known Gaps
 
 This batch improves the broad WebUI and backend defects. The sidebar now exposes grouped sessions with active-session state, and approval cards show real tool, operation, target, reason, and action JSON. Future polish could split groups beyond today's local sessions when older fixture data is present.
+
+2026-07-13 follow-up: WebUI and CLI validation now have a small internal pseudo-shell vocabulary. Read-only pseudo commands execute without the system shell, while delete commands create HITL approval requests and execute only after approval through Python filesystem operations inside the workspace boundary.

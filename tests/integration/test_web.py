@@ -16,6 +16,7 @@ def test_index_loads_chat_workspace_without_guardrail_nav(tmp_path: Path):
 
     assert response.status_code == 200
     assert '<html lang="en">' in response.text
+    assert "styles.css?v=" in response.text
     assert "Chat Workspace" in response.text
     assert "Provider Settings" in response.text
     assert "Approvals" in response.text
@@ -74,9 +75,13 @@ def test_chat_workspace_css_uses_global_scroll_and_compact_composer():
     assert ".sidebar-scroll { height: calc(100vh - 72px); overflow-y: auto; padding: 16px 24px 24px; }" in response.text
     assert ".sidebar-item { min-width: 0" in response.text
     assert ".sidebar-item span, .sidebar-item small { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }" in response.text
-    assert ".composer, .settings-card { margin: 24px 0 64px; padding: 12px; border: 1px solid #e5e5e5; border-radius: 24px; background: #fff; }" in response.text
+    assert ".composer, .settings-card { margin: 24px 0 64px; padding: 8px 8px 6px 8px; border: 1px solid #e5e5e5; border-radius: 24px; background: #fff; }" in response.text
     assert ".composer-row { display: grid; grid-template-columns: 1fr; align-items: end; }" in response.text
-    assert ".composer-submit { width: 28px; height: 28px; padding: 0; border-radius: 9999px; line-height: 1; }" in response.text
+    assert ".composer-submit { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0; border-radius: 9999px; line-height: 1; }" in response.text
+    assert ".composer-stop-icon { display: block; width: 10px; height: 10px; border-radius: 2px; background: #fff; }" in response.text
+    assert ".composer-submit:disabled { opacity: 1; background: #000; cursor: default; }" in response.text
+    assert ".composer-submit:disabled .composer-stop-icon { background: #fff; }" in response.text
+    assert ".loading-placeholder { font-size: 28px; line-height: 1; letter-spacing: 0; color: #737373; }" in response.text
     assert "textarea { min-height: 36px; max-height: 180px; border-radius: 22px; resize: none; overflow-y: auto; }" in response.text
     assert ".composer-sticky" not in response.text
     assert ".chat-scroll" not in response.text
@@ -94,6 +99,46 @@ def test_composer_matches_borderless_input_with_submit_in_status_row():
     assert 'taskInput.style.overflowY = taskInput.scrollHeight > 180 ? "auto" : "hidden";' in html
     assert 'class="composer-status"' in html
     assert html.index("composer-submit") > html.index("composer-status")
+
+
+def test_composer_submit_clears_input_and_prevents_duplicate_submits():
+    client = TestClient(create_app())
+
+    html = client.get("/").text
+
+    assert "let isSubmitting = false;" in html
+    assert 'const submitButton = document.querySelector(".composer-submit");' in html
+    assert 'const conversationList = document.querySelector(".conversation-list");' in html
+    assert 'const taskSubmitValue = document.querySelector("#task-submit-value");' in html
+    assert "function appendOptimisticUserMessage(text) {" in html
+    assert 'article.className = "conversation-item conversation-item-pending";' in html
+    assert 'message.className = "message message-user";' in html
+    assert "paragraph.textContent = text;" in html
+    assert "conversationList.append(article);" in html
+    assert "function appendOptimisticAgentMessage() {" in html
+    assert 'article.className = "conversation-item conversation-item-pending conversation-item-loading";' in html
+    assert 'message.className = "message message-agent";' in html
+    assert 'body.className = "markdown-body loading-placeholder";' in html
+    assert 'body.textContent = "...";' in html
+    assert 'composerForm?.addEventListener("submit", (event) => {' in html
+    assert "if (isSubmitting) {" in html
+    assert "event.preventDefault();" in html
+    assert 'taskSubmitValue.name = "task";' in html
+    assert "const submittedTask = taskInput.value;" in html
+    assert "taskSubmitValue.value = submittedTask;" in html
+    assert 'taskInput.removeAttribute("name");' in html
+    assert "isSubmitting = true;" in html
+    assert "taskInput.value = \"\";" in html
+    assert "appendOptimisticUserMessage(submittedTask);" in html
+    assert "appendOptimisticAgentMessage();" in html
+    assert "taskInput.disabled = true;" not in html
+    assert "submitButton.disabled = true;" in html
+    assert 'submitButton.textContent = "";' in html
+    assert 'stopIcon.className = "composer-stop-icon";' in html
+    assert 'stopIcon.setAttribute("aria-hidden", "true");' in html
+    assert "submitButton.append(stopIcon);" in html
+    assert 'submitButton.setAttribute("aria-label", "Task is running");' in html
+    assert 'submitButton.setAttribute("aria-busy", "true");' in html
 
 
 def test_index_lists_recent_sessions_as_conversation_items(tmp_path: Path):
@@ -246,6 +291,45 @@ def test_waiting_approval_session_shows_approval_card_in_chat(tmp_path: Path):
     assert waiting.pending_approval_id in response.text
 
 
+def test_approval_card_submit_switches_to_processing_state(tmp_path: Path):
+    store = SQLiteStore(tmp_path / "state.sqlite3", workspace_root=tmp_path)
+    waiting = AgentLoop.for_workspace(
+        tmp_path,
+        MockLLM(['{"type":"write_file","path":".env","content":"MODE=prod"}']),
+        store,
+    ).run("configure production")
+    client = TestClient(create_app(store.db_path, workspace_root=tmp_path))
+
+    html = client.get("/").text
+
+    assert f'data-approval-card="{waiting.pending_approval_id}"' in html
+    assert 'data-approval-title' in html
+    assert 'data-approval-status' in html
+    assert 'data-approval-submit="approve"' in html
+    assert 'data-approval-submit="deny-action"' in html
+    assert 'data-approval-submit="stop-task"' in html
+    assert "Deny action" in html
+    assert "Stop task" in html
+    assert "document.querySelectorAll(\"[data-approval-card]\").forEach" in html
+    assert 'const action = form.dataset.approvalSubmit;' in html
+    assert 'title.textContent = approvalProcessingTitle(action);' in html
+    assert 'status.textContent = approvalProcessingStatus(action);' in html
+    assert 'card.querySelectorAll("button").forEach((button) => {' in html
+    assert 'button.disabled = true;' in html
+    assert "let approvalSubmitting = false;" in html
+    assert "event.preventDefault();" in html
+    assert "fetch(form.action, {" in html
+    assert 'method: form.method || "POST",' in html
+    assert "body: new FormData(form)," in html
+    assert 'credentials: "same-origin",' in html
+    assert 'redirect: "follow",' in html
+    assert "if (response.redirected && response.url) {" in html
+    assert "window.location.assign(response.url);" in html
+    assert "window.location.reload();" in html
+    assert 'title.textContent = "Approval failed";' in html
+    assert 'button.disabled = false;' in html
+
+
 def test_run_shell_approval_card_uses_real_tool_summary(tmp_path: Path):
     store = SQLiteStore(tmp_path / "state.sqlite3", workspace_root=tmp_path)
     session = store.create_session("remove generated file", tmp_path)
@@ -292,6 +376,37 @@ def test_primary_navigation_omits_guardrail_link_but_direct_page_loads(tmp_path:
     assert guardrail.status_code == 200
     assert "Guardrail Demo" in guardrail.text
     assert 'class="chat-page"' in guardrail.text
+
+
+def test_history_restore_refreshes_chat_page_and_partially_updates_other_pages(tmp_path: Path, monkeypatch):
+    monkeypatch.setattr("guarded_harness.web.app._credential_store", lambda: _FakeCredentials(None))
+    store = SQLiteStore(tmp_path / "state.sqlite3", workspace_root=tmp_path)
+    session = store.create_session("history refresh check", tmp_path)
+    client = TestClient(create_app(store.db_path, workspace_root=tmp_path))
+
+    chat_response = client.get("/")
+    assert chat_response.status_code == 200
+    assert 'data-history-refresh="reload"' in chat_response.text
+    assert 'window.addEventListener("pageshow", (event) => {' in chat_response.text
+    assert 'if (historyRefreshMode === "reload") {' in chat_response.text
+    assert "window.location.reload();" in chat_response.text
+
+    for path in ("/settings", "/approvals", "/guardrail", f"/sessions/{session.id}"):
+        response = client.get(path)
+        assert response.status_code == 200
+        assert 'data-history-refresh="partial"' in response.text
+        assert 'window.addEventListener("pageshow", (event) => {' in response.text
+        assert "event.persisted" in response.text
+        assert 'performance.getEntriesByType("navigation")[0]?.type === "back_forward"' in response.text
+        assert 'fetch(window.location.href, { cache: "no-store" })' in response.text
+        assert 'replacePageRegion(nextDocument, ".site-header");' in response.text
+        assert 'replacePageRegion(nextDocument, ".session-sidebar");' in response.text
+        assert 'replacePageRegion(nextDocument, ".chat-main");' in response.text
+        assert "const formState = captureFormState();" in response.text
+        assert "const detailsState = captureDetailsState();" in response.text
+        assert "restoreFormState(formState);" in response.text
+        assert "restoreDetailsState(detailsState);" in response.text
+        assert "window.scrollTo(scrollX, scrollY);" in response.text
 
 
 def test_provider_settings_save_updates_dashboard_without_persisting_key(tmp_path: Path, monkeypatch):
@@ -547,6 +662,81 @@ def test_denying_approval_resumes_session(tmp_path: Path):
     assert response.status_code == 200
     assert "approval_denied" in response.text
     assert store.get_approval(approval_id).status == "denied"
+
+
+def test_denying_live_approval_continues_provider_with_feedback(tmp_path: Path, monkeypatch):
+    credentials = _FakeCredentials("stored-live-secret")
+    contexts = []
+
+    class ContinuingProvider:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def complete(self, context):
+            contexts.append(context)
+            return '{"type":"finish","message":"continued after denial"}'
+
+    monkeypatch.setattr("guarded_harness.web.app._credential_store", lambda: credentials)
+    monkeypatch.setattr("guarded_harness.web.app.OpenAICompatibleProvider", ContinuingProvider)
+    store = SQLiteStore(tmp_path / "state.sqlite3", workspace_root=tmp_path)
+    waiting = AgentLoop.for_workspace(
+        tmp_path,
+        MockLLM(['{"type":"write_file","path":".env","content":"MODE=prod"}']),
+        store,
+    ).run("configure production")
+    store.append_audit(
+        waiting.id,
+        "provider_configured",
+        {"mode": "live", "base_url": "https://njusehub.info/v1", "model": "glm-5.2"},
+    )
+    client = TestClient(create_app(store.db_path, workspace_root=tmp_path))
+
+    response = client.post(f"/approvals/{waiting.pending_approval_id}/deny", follow_redirects=True)
+    events = store.list_audit(waiting.id)
+
+    assert response.status_code == 200
+    assert "continued after denial" in response.text
+    assert contexts[0]["observations"][0]["feedback_kind"] == "approval_denied"
+    assert any(event.event_type == "approval_denied" for event in events)
+    assert not any(event.event_type == "approval_recovery_ended" for event in events)
+    assert store.get_approval(waiting.pending_approval_id).status == "denied"
+
+
+def test_stopping_live_approval_ends_without_calling_provider(tmp_path: Path, monkeypatch):
+    credentials = _FakeCredentials("stored-live-secret")
+    constructed = []
+
+    class ContinuingProvider:
+        def __init__(self, *args, **kwargs):
+            constructed.append({"args": args, "kwargs": kwargs})
+
+        def complete(self, context):
+            return '{"type":"finish","message":"continued unexpectedly"}'
+
+    monkeypatch.setattr("guarded_harness.web.app._credential_store", lambda: credentials)
+    monkeypatch.setattr("guarded_harness.web.app.OpenAICompatibleProvider", ContinuingProvider)
+    store = SQLiteStore(tmp_path / "state.sqlite3", workspace_root=tmp_path)
+    waiting = AgentLoop.for_workspace(
+        tmp_path,
+        MockLLM(['{"type":"write_file","path":".env","content":"MODE=prod"}']),
+        store,
+    ).run("configure production")
+    store.append_audit(
+        waiting.id,
+        "provider_configured",
+        {"mode": "live", "base_url": "https://njusehub.info/v1", "model": "glm-5.2"},
+    )
+    client = TestClient(create_app(store.db_path, workspace_root=tmp_path))
+
+    response = client.post(f"/approvals/{waiting.pending_approval_id}/stop", follow_redirects=True)
+    events = store.list_audit(waiting.id)
+
+    assert response.status_code == 200
+    assert constructed == []
+    assert "continued unexpectedly" not in response.text
+    assert any(event.event_type == "approval_denied" for event in events)
+    assert any(event.event_type == "approval_recovery_ended" for event in events)
+    assert store.get_approval(waiting.pending_approval_id).status == "denied"
 
 
 def test_approvals_page_redacts_secrets_from_pending_action(tmp_path: Path):

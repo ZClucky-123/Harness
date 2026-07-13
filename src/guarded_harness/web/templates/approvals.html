@@ -4,9 +4,9 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{{ title }}</title>
-  <link rel="stylesheet" href="{{ url_for('static', path='styles.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', path='styles.css') }}?v={{ static_version }}">
 </head>
-<body>
+<body data-history-refresh="partial">
   <main class="chat-page">
     <header class="site-header">
       <nav class="nav-links">
@@ -55,12 +55,13 @@
                   {% if approval.status == "pending" %}
                     <div class="approval-actions">
                       <form action="/approvals/{{ approval.id }}/approve" method="post"><button type="submit">Approve</button></form>
-                      <form action="/approvals/{{ approval.id }}/deny" method="post"><button class="deny" type="submit">Deny</button></form>
+                      <form action="/approvals/{{ approval.id }}/deny" method="post"><button class="deny-action" type="submit">Deny action</button></form>
+                      <form action="/approvals/{{ approval.id }}/stop" method="post"><button class="stop-task" type="submit">Stop task</button></form>
                     </div>
                   {% elif approval.status == "executing" %}
                     <form action="/approvals/{{ approval.id }}/mark-failed" method="post" class="approval-actions">
                       <input name="reason" placeholder="Failure reason" required>
-                      <button class="deny" type="submit">Mark failed</button>
+                      <button class="stop-task" type="submit">Mark failed</button>
                     </form>
                   {% endif %}
                   <div class="approval-links">
@@ -79,5 +80,6 @@
       </section>
     </div>
   </main>
+  {% include "_history_refresh.html" %}
 </body>
 </html>

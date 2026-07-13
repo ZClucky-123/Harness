@@ -38,7 +38,7 @@ _SHELL_WRAPPER_FLAGS = {
     "pwsh": {"-command", "-encodedcommand", "-ec"},
     "cmd": {"/c", "/k"},
 }
-_CMD_BUILTINS_REQUIRING_CMD_EXE = {"del", "dir", "rd", "type"}
+_CMD_BUILTINS_REQUIRING_CMD_EXE: set[str] = set()
 
 
 def contains_shell_control_syntax(command: str) -> bool:

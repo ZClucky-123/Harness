@@ -182,6 +182,109 @@
   - Remove `<h2>Recent Sessions</h2>` from `index.html`
 - **Files changed:** `src/guarded_harness/web/static/styles.css`, `src/guarded_harness/web/templates/index.html`, `tests/integration/test_web.py`.
 
+## 2026-07-13 - Fix: cross-platform pseudo-shell commands for WebUI validation
+
+- **Superpowers skills:** `brainstorming` (approved design), `systematic-debugging` (root cause and command classification), `test-driven-development` (red/green tests), `verification-before-completion` (planned final verification).
+- **Trigger:** Live WebUI trace showed `ls` was allowed by policy but failed on Windows because `shell=False` looked for `ls.exe`; user then requested support for common `ls`/`rm`-style commands so the frontend can verify successful tool calls and approval flows.
+- **Root cause:** The shell safe allowlist mixed portable external executables with PowerShell aliases/cmdlets and cmd built-ins. The executor correctly avoided system shells, but no internal implementation existed for commands such as `ls`, `cat`, `pwd`, `echo`, `dir`, `type`, `rm`, `del`, `rd`, and `rmdir`.
+- **Design decision:** Add a small Harness-owned pseudo-shell vocabulary instead of enabling `cmd`, PowerShell, Bash, pipes, redirects, or inline interpreters.
+- **Fixes:**
+  - `ls [path]` / `dir [path]` list workspace directories via Python.
+  - `pwd` returns the workspace root.
+  - `cat <file>` / `type <file>` read UTF-8 files inside the workspace.
+  - `echo <text>` returns text without supporting redirects.
+  - `rm`, `del`, `rd`, and `rmdir` now require HITL approval and execute approved deletes through Python filesystem operations inside the workspace boundary.
+  - `subprocess.run` for remaining external executables now uses `encoding="utf-8", errors="replace"` to avoid Windows GBK decode failures on Chinese output.
+- **TDD evidence:** First focused run failed with 16 expected failures for unsupported pseudo commands and missing UTF-8 subprocess kwargs. After implementation, `.\.venv\Scripts\python.exe -m pytest tests\unit\test_guardrail.py tests\unit\test_dispatcher.py tests\integration\test_hitl.py -q` passed with 128 passed, 2 skipped.
+- **Verification:** `.\.venv\Scripts\python.exe -m pytest -q` -> 252 passed, 2 skipped, 1 failed at the pre-existing CSS exact-string assertion in `tests/integration/test_web.py::test_chat_workspace_css_uses_global_scroll_and_compact_composer`; `.\.venv\Scripts\python.exe -m compileall -q src` -> exit 0; `git diff --check` -> exit 0.
+- **Files changed:** `src/guarded_harness/governance/policies.py`, `src/guarded_harness/governance/shell_command.py`, `src/guarded_harness/tools/dispatcher.py`, `src/guarded_harness/tools/shell.py`, `tests/unit/test_guardrail.py`, `tests/unit/test_dispatcher.py`, `tests/integration/test_hitl.py`, `docs/superpowers/plans/2026-07-12-issue-backlog-fixes.md`.
+- **Lesson:** A safe shell policy must describe capabilities the harness actually owns. Cross-platform demo commands are safer as structured internal operations than as aliases to platform shells.
+
+## 2026-07-13 - Fix: stale compact composer CSS assertion
+
+- **Superpowers skills:** `systematic-debugging`, `test-driven-development`, `verification-before-completion`.
+- **Trigger:** Full pytest still had one failure in `test_chat_workspace_css_uses_global_scroll_and_compact_composer` after the shell work.
+- **Root cause:** The test still expected the old `.composer, .settings-card` `padding: 12px`, while the UI had intentionally been compressed to `padding: 8px 8px 6px 8px` in the earlier composer spacing task.
+- **Fix:** Updated the CSS assertion in `tests/integration/test_web.py` to match the documented compact composer rule.
+- **Verification:** `.\.venv\Scripts\python.exe -m pytest tests\integration\test_web.py::test_chat_workspace_css_uses_global_scroll_and_compact_composer -q` -> 1 passed; `.\.venv\Scripts\python.exe -m pytest -q` -> 253 passed, 2 skipped, 1 warning.
+
+## 2026-07-13 - Fix: composer submit feedback
+
+- **Superpowers skills:** `brainstorming` (approved UI behavior), `systematic-debugging` (confirmed missing submit-state handler), `test-driven-development` (red/green WebUI regression), `verification-before-completion`.
+- **Trigger:** User reported that after sending from the frontend, the message remained in the input box while the request was processing, making it look as if the send failed.
+- **Root cause:** The composer only handled textarea growth and Enter submission. The normal form submit had no immediate UI feedback, no textarea clearing, and no duplicate-submit guard. A first pass disabled the textarea before browser serialization, which omitted the `task` field from the POST body.
+- **Fix:** Added a submit listener that checks native validity, copies the textarea value into a hidden `task` field, prevents duplicate submissions, clears the visible textarea immediately, resets its height, disables textarea/button, and marks the submit button `aria-busy` while the normal form submission continues. The textarea keeps `name="task"` as a no-JS fallback; the hidden field receives `name="task"` only during JS submit before the textarea is disabled.
+- **Verification:** `.\.venv\Scripts\python.exe -m pytest tests\integration\test_web.py::test_composer_matches_borderless_input_with_submit_in_status_row tests\integration\test_web.py::test_composer_submit_clears_input_and_prevents_duplicate_submits -q` -> 2 passed.
+
+## 2026-07-13 - Fix: approval card immediate processing state
+
+- **Superpowers skills:** `brainstorming` (approved UI behavior), `test-driven-development` (red/green WebUI regression), `verification-before-completion`.
+- **Trigger:** User reported that clicking an approval/denial button left the same approval card visible and actionable during the POST round trip, making the click feel ineffective.
+- **Fix:** Added stable `data-approval-card`/`data-approval-submit` hooks, a per-card submit guard, immediate title/status updates (`Approving...` / `Denying...`), and button disabling with `aria-busy` while the existing backend approval POST continues.
+- **Verification:** `.\.venv\Scripts\python.exe -m pytest tests\integration\test_web.py::test_waiting_approval_session_shows_approval_card_in_chat tests\integration\test_web.py::test_approval_card_submit_switches_to_processing_state tests\integration\test_web.py::test_run_shell_approval_card_uses_real_tool_summary -q` -> 3 passed.
+
+## 2026-07-13 - Fix: approval submit auto-refresh after completion
+
+- **Superpowers skills:** `systematic-debugging` (confirmed stale approval card after successful submit), `test-driven-development` (red/green WebUI regression), `verification-before-completion`.
+- **Trigger:** User confirmed that after approving a delete command, the card changed to `Approving...` but stayed on the same selectable page after execution returned.
+- **Root cause:** The previous UI only changed local card state before allowing the normal form submit. In the frontend trace flow, that did not reliably force the displayed chat workspace to reload after the backend completed approval recovery.
+- **Fix:** Converted approval forms to controlled JavaScript submission: prevent default form navigation, POST with `fetch(..., redirect: "follow")`, then explicitly `window.location.assign(response.url)` for backend redirects or `window.location.reload()` for successful non-redirect responses. Failed requests now restore the buttons and show `Approval failed`.
+- **TDD evidence:** Added assertions for `fetch(form.action, ...)`, same-origin POST, redirect following, explicit `window.location.assign`, explicit reload, and failure recovery. The focused test failed before implementation and passed after the template change.
+
+## 2026-07-13 - Fix: composer running icon without disabling input
+
+- **Superpowers skills:** `brainstorming` (clarified expected send-button state), `test-driven-development` (red/green WebUI regression), `verification-before-completion`.
+- **Trigger:** User reported that while a message is being sent, the send button still shows the arrow; it should switch to a square, then return to the arrow after the page completes, and the input box should not be disabled.
+- **Root cause:** The previous submit feedback disabled both textarea and submit button and only used `aria-busy`; it did not change the visible button glyph.
+- **Fix:** During JS submit, copy the textarea value into the hidden `task` input, remove the textarea `name` to avoid submitting the cleared textarea as a second `task` value, clear the visible textarea, and change the submit button text to `■` with `aria-label="Task is running"`. The textarea and button remain enabled visually; duplicate submits are still guarded by `isSubmitting`.
+- **TDD evidence:** Updated the composer submit test to require the square glyph, reject `taskInput.disabled = true` and `submitButton.disabled = true`, and require `taskInput.removeAttribute("name")`. The test failed before implementation and passed after the template change.
+
+## 2026-07-13 - Fix: optimistic chat message and centered stop icon
+
+- **Superpowers skills:** `brainstorming` (approved optimistic-message design), `test-driven-development` (red/green WebUI regression), `verification-before-completion`.
+- **Trigger:** User clarified that after sending, the chat page should immediately show the submitted user message while the send button is in square running state; the square should appear as a centered white stop icon inside the black circular button.
+- **Root cause:** The previous running state cleared the input and changed the button text, but did not append any local chat message before the backend response. The square was also rendered as button text, which made visual centering dependent on font metrics.
+- **Fix:** Added `appendOptimisticUserMessage()` to append a temporary right-aligned user message using DOM APIs and `textContent` for safe escaping. Replaced text-based `■` with a `.composer-stop-icon` span styled as a 10px white square centered by the inline-flex submit button.
+- **TDD evidence:** Added assertions for the optimistic message DOM creation, safe `textContent`, appending to `.conversation-list`, and CSS for the centered white square. The focused WebUI tests failed first and then passed after the template/CSS changes.
+
+## 2026-07-13 - Fix: loading reply and disabled stop button
+
+- **Superpowers skills:** `brainstorming` (approved loading-state behavior), `test-driven-development` (red/green WebUI regression), `verification-before-completion`.
+- **Trigger:** User clarified that while the model is loading, the stop-square send button should be disabled, the centered white square must remain visible, and the temporary model reply should show `...` until the real page refresh completes.
+- **Root cause:** The optimistic send state only appended the user message and left the submit button clickable. The disabled button browser style was not pinned, so making it disabled could dim the icon/background depending on browser defaults.
+- **Fix:** Added `appendOptimisticAgentMessage()` to append a temporary left-aligned agent message containing `...`; disabled the submit button after adding the white-square stop icon; added disabled-state CSS to preserve black background, white square, and default cursor.
+- **TDD evidence:** Updated WebUI assertions to require the `...` agent loading message, `submitButton.disabled = true`, and explicit disabled CSS that keeps `.composer-stop-icon` white. The focused tests failed first and passed after implementation.
+
+## 2026-07-13 - Fix: larger loading ellipsis
+
+- **Superpowers skills:** `test-driven-development` (red/green WebUI regression), `verification-before-completion`.
+- **Trigger:** User requested the temporary model loading ellipsis be larger.
+- **Fix:** Added a dedicated `.loading-placeholder` class for the optimistic agent reply and styled it with `font-size: 28px`, `line-height: 1`, and the existing muted text color. This keeps the larger ellipsis scoped to the loading placeholder instead of changing all markdown output.
+- **TDD evidence:** Added assertions for the `markdown-body loading-placeholder` class and the new CSS rule. The focused WebUI tests failed before implementation and passed after the template/CSS change.
+
+## 2026-07-13 - Fix: stylesheet cache busting for loading UI
+
+- **Superpowers skills:** `systematic-debugging` (compared screenshot behavior with updated JS/CSS), `test-driven-development` (red/green WebUI regression), `verification-before-completion`.
+- **Trigger:** User screenshot showed the temporary `...` appeared, but it was not enlarged and the stop button remained a plain black circle without the white square.
+- **Root cause:** The inline template JavaScript was fresh, but the browser was still using cached `/static/styles.css`, so `.loading-placeholder` and `.composer-stop-icon` styles were missing.
+- **Fix:** Added a `_STATIC_VERSION` Jinja global and appended `?v={{ static_version }}` to every stylesheet link so updated CSS is fetched after UI changes.
+- **TDD evidence:** Added an assertion that the chat page includes `styles.css?v=`; the test failed before adding the versioned stylesheet URL and passed after implementation.
+
+## 2026-07-13 - Fix: refresh pages restored from browser history
+
+- **Superpowers skills:** `brainstorming` (approved all-page behavior), `test-driven-development` (red/green WebUI regression), `verification-before-completion`.
+- **Trigger:** User found that after approval completes and redirects, clicking the browser Back button can restore a stale page instead of fetching current state.
+- **Root cause:** Browsers may restore pages from the back-forward cache, preserving transient UI state such as `Approving...` without a network request.
+- **Fix:** Added shared `_history_refresh.html` and included it on Chat, Settings, Approvals, Guardrail, and Session pages. The script listens for `pageshow` and reloads when `event.persisted` or the navigation type is `back_forward`.
+- **TDD evidence:** Added an integration test that fetches all primary pages and asserts the shared `pageshow` reload logic is present. The test failed before the shared partial was included and passed after implementation.
+
+## 2026-07-13 - Refine: partial history refresh outside chat
+
+- **Superpowers skills:** `brainstorming` (approved page-specific refresh policy), `test-driven-development` (red/green WebUI regression), `verification-before-completion`.
+- **Trigger:** User clarified that browser back/forward should fetch fresh server data while preserving unsubmitted form input, details expansion, and scroll position where possible; Chat should keep full reload.
+- **Fix:** Added `data-history-refresh="reload"` to Chat and `data-history-refresh="partial"` to Settings, Approvals, Guardrail, and Session. The shared history script now fully reloads Chat, but on partial pages fetches the current URL with `cache: "no-store"`, replaces `.site-header`, `.session-sidebar`, and `.chat-main`, then restores form values, `details` open state, and scroll position.
+- **TDD evidence:** Updated the history restore integration test to assert Chat uses reload mode and all other primary pages expose partial refresh, region replacement, form/details state restoration, and scroll restoration. The test failed before implementation and passed after the partial-refresh script change.
+
 ## 2026-07-13 - Fix: unified layout across all pages
 
 - **Superpowers skills:** `brainstorming` (layout consistency design), `test-driven-development` (update template tests), `verification-before-completion` (cross-page diff check).
@@ -218,3 +321,30 @@
   - `.chat-page` bottom padding `150px → 100px`
   - Added `.composer-backdrop` (fixed white block, z-index 19) behind composer
 - **Files changed:** `src/guarded_harness/web/static/styles.css`, `src/guarded_harness/web/templates/index.html`, `tests/integration/test_web.py`.
+
+## 2026-07-13 - Fix: shell control syntax and file-target ls trace loop
+
+- **Superpowers skills:** `systematic-debugging` (trace/root-cause analysis), `test-driven-development` (red/green shell policy regressions), `verification-before-completion`.
+- **Trigger:** User provided a `恢复test.md` trace ending in `[max steps]`; the trace showed shell control syntax being sent to approval even though the executor rejects it after approval, plus `ls -la test.md` failing for an existing-file style target.
+- **Root cause:** `classify_shell_command()` treated shell control syntax as approvable, but `parse_shell_argv()` rejects that syntax unconditionally. The pseudo `ls` implementation only accepted directories, unlike common shell behavior where `ls file` is a valid existence check.
+- **Fixes:**
+  - Shell control syntax now returns `policy_deny` with `shell control syntax is not supported; run one command at a time`, avoiding approval cards that cannot succeed.
+  - Pseudo `ls` now supports file targets and returns the file entry instead of `ls target is not a directory`.
+  - Provider action protocol now tells the model to emit single-argv shell commands only, and to `finish` with an explanation when observations prove no allowed recovery source exists.
+- **TDD evidence:** Added/updated guardrail and dispatcher tests. The focused tests failed first with `needs_approval` / `ls target is not a directory`, then passed after implementation.
+
+## 2026-07-13 - Fix: deny approval stops live Web session (superseded)
+
+- **Superpowers skills:** `systematic-debugging` (trace/root-cause analysis), `test-driven-development` (Web approval regression), `verification-before-completion`.
+- **Trigger:** User provided a trace where clicking Deny on `git status && git log --oneline` recorded `approval_denied`, but the live provider then continued with `git status`, `git log --oneline`, and finished the task.
+- **Root cause:** Web `_resume_approval()` set `continue_after_resolution = True` for live sessions regardless of whether the approval was accepted or denied. That made Deny behave like "reject this exact action, then let the model try another action".
+- **Fix:** Web approval resume now continues the live provider loop only when `approved` is true. Deny uses the non-continuing recovery path, records `approval_denied`, finishes the session, and avoids constructing/calling the live provider.
+- **TDD evidence:** Added `test_denying_live_approval_stops_without_calling_provider`, asserting Deny does not construct the provider, does not show a provider continuation message, records `approval_denied`, and records `approval_recovery_ended`.
+- **Superseded by:** The later three-button refinement splits this into `Deny action` (continue live provider) and `Stop task` (end the task).
+
+## 2026-07-13 - Refine: split approval denial into action denial and task stop
+
+- **Superpowers skills:** `brainstorming` (confirmed three-button semantics), `test-driven-development` (Web approval regressions), `verification-before-completion`.
+- **Trigger:** User asked which approval denial behavior is better; we chose explicit buttons for both meanings instead of overloading one `Deny` action.
+- **Fix:** Chat approval cards and the Approvals page now show `Approve once`, `Deny action`, and `Stop task`. `/approvals/{id}/deny` means "deny this action and let live provider try another route"; `/approvals/{id}/stop` means "deny and end this task". The processing UI now shows distinct `Denying action...` and `Stopping...` states.
+- **TDD evidence:** Updated approval-card assertions and added regressions proving live `Deny action` continues with `approval_denied` feedback while live `Stop task` does not construct/call the provider and records `approval_recovery_ended`.

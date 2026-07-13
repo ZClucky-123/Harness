@@ -16,6 +16,8 @@ Supported actions:
 - {"type":"run_tests"}
 - {"type":"remember","kind":"decision","content":"...","tags":["..."]}
 For normal question answering, use {"type":"finish","message":"..."}.
+Shell commands are executed as a single argv only; do not use pipes, redirects, &&, ||, ;, newlines, substitutions, or shell wrappers.
+When observations show the requested file/data is unavailable and no allowed recovery source exists, use finish to explain that instead of trying more variants.
 """
 
 

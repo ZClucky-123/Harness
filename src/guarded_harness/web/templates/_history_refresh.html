@@ -1,0 +1,95 @@
+<script>
+  const historyRefreshMode = document.body.dataset.historyRefresh;
+
+  function isHistoryRestore(event) {
+    return event.persisted || performance.getEntriesByType("navigation")[0]?.type === "back_forward";
+  }
+
+  function fieldKey(field, index) {
+    return field.name || field.id || `field:${index}`;
+  }
+
+  function captureFormState() {
+    return Array.from(document.querySelectorAll("input, textarea, select")).map((field, index) => ({
+      key: fieldKey(field, index),
+      type: field.type,
+      value: field.value,
+      checked: field.checked,
+    }));
+  }
+
+  function restoreFormState(state) {
+    const fields = Array.from(document.querySelectorAll("input, textarea, select"));
+    state.forEach((item) => {
+      const field = fields.find((candidate, index) => fieldKey(candidate, index) === item.key);
+      if (!field) {
+        return;
+      }
+      if (item.type === "checkbox" || item.type === "radio") {
+        field.checked = item.checked;
+      } else {
+        field.value = item.value;
+      }
+    });
+  }
+
+  function captureDetailsState() {
+    return Array.from(document.querySelectorAll("details")).map((details, index) => ({
+      index,
+      open: details.open,
+    }));
+  }
+
+  function restoreDetailsState(state) {
+    const detailsList = Array.from(document.querySelectorAll("details"));
+    state.forEach((item) => {
+      if (detailsList[item.index]) {
+        detailsList[item.index].open = item.open;
+      }
+    });
+  }
+
+  function replacePageRegion(nextDocument, selector) {
+    const current = document.querySelector(selector);
+    const replacement = nextDocument.querySelector(selector);
+    if (current && replacement) {
+      current.replaceWith(replacement);
+    }
+  }
+
+  async function refreshPagePartially() {
+    const scrollX = window.scrollX;
+    const scrollY = window.scrollY;
+    const formState = captureFormState();
+    const detailsState = captureDetailsState();
+    try {
+      const response = await fetch(window.location.href, { cache: "no-store" });
+      if (!response.ok) {
+        return;
+      }
+      const text = await response.text();
+      const nextDocument = new DOMParser().parseFromString(text, "text/html");
+      replacePageRegion(nextDocument, ".site-header");
+      replacePageRegion(nextDocument, ".session-sidebar");
+      replacePageRegion(nextDocument, ".chat-main");
+      restoreFormState(formState);
+      restoreDetailsState(detailsState);
+      window.scrollTo(scrollX, scrollY);
+    } catch (error) {
+      return;
+    }
+  }
+
+  window.addEventListener("pageshow", (event) => {
+    if (!isHistoryRestore(event)) {
+      return;
+    }
+    if (historyRefreshMode === "reload") {
+      window.location.reload();
+      return;
+    }
+    if (historyRefreshMode === "partial") {
+      refreshPagePartially();
+    }
+  });
+</script>

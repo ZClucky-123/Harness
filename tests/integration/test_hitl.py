@@ -72,6 +72,29 @@ def test_approved_pending_action_executes_and_persists_finished_session(tmp_path
     assert loop.store.get_approval(approval.id).status == "executed"
 
 
+def test_approved_pseudo_shell_rm_executes_and_persists_finished_session(tmp_path: Path):
+    target = tmp_path / "delete-me.txt"
+    target.write_text("remove", encoding="utf-8")
+    loop = make_loop(
+        tmp_path,
+        [
+            '{"type":"run_shell","command":"rm delete-me.txt"}',
+            '{"type":"finish","message":"removed"}',
+        ],
+    )
+
+    waiting = loop.run("delete generated file")
+    approval = loop.store.list_pending_approvals()[0]
+    session = loop.resume_after_approval(approval.id, approved=True)
+    events = loop.store.list_audit(waiting.id)
+
+    assert session.status == SessionStatus.FINISHED
+    assert not target.exists()
+    assert any(event.event_type == "approval_approved" for event in events)
+    assert any(event.event_type == "resumed_tool_result" and event.payload["success"] for event in events)
+    assert loop.store.get_approval(approval.id).status == "executed"
+
+
 def test_denied_approval_feeds_back_and_finishes(tmp_path: Path):
     loop = make_loop(
         tmp_path,
