@@ -6,7 +6,7 @@
 
 **Architecture:** 同一套 `guarded_harness` 核心同时服务 CLI 和 WebUI。LLM 只输出结构化 action；agent loop 自己完成解析、策略判定、工具分发、反馈回灌、记忆和审计。核心机制必须能用 `MockLLM` 离线测试。
 
-**Tech Stack:** Python 3.11+, FastAPI, Typer, pytest, SQLite, keyring optional, Docker, GitLab CI.
+**Tech Stack:** Python 3.11+, FastAPI, Typer, pytest, SQLite, keyring optional, Docker, GitHub Actions.
 
 ## Global Constraints
 
@@ -16,8 +16,8 @@
 - API key 不得硬编码、不得提交、不得出现在日志、审计事件、CLI 输出或 WebUI 页面中。
 - 所有文件和 shell action 必须受 workspace root 边界约束。
 - Docker 是正式分发方式。
-- `.gitlab-ci.yml` 必须包含名为 `unit-test` 的 job。
-- WebUI 保持最小可用：任务输入、session trace、审批列表、approve/deny、最终结果。
+- `.github/workflows/ci.yml` 必须在 Python 3.11 和 3.12 上运行测试与编译检查。
+- WebUI 保持最小可用：任务输入、Provider Settings、session trace、审批列表、`Approve once` / `Deny action` / `Stop task`、最终结果。
 
 ---
 
@@ -29,7 +29,7 @@ README.md
 SPEC_PROCESS.md
 AGENT_LOG.md
 .gitignore
-.gitlab-ci.yml
+.github/workflows/ci.yml
 Dockerfile
 src/guarded_harness/
   __init__.py
@@ -490,14 +490,20 @@ Implement shell execution with:
 
 ```python
 subprocess.run(
-    command,
+    argv,
     cwd=workspace_root,
-    shell=True,
+    shell=False,
     text=True,
     capture_output=True,
     timeout=30,
 )
 ```
+
+Shell command strings are parsed into argv before execution. Shell control syntax such as pipes,
+redirection, command substitution, logical connectors and multiline command chaining is rejected
+before dispatch. Common Windows-friendly pseudo commands such as `ls`, `dir`, `pwd`, `cat`, `type`
+and `echo` are handled explicitly; destructive pseudo deletes require HITL and execute through
+workspace-bounded Python filesystem operations after approval.
 
 Return `Observation(success=returncode == 0, feedback_kind=...)`.
 
@@ -599,7 +605,7 @@ Implement `AgentLoop.run()`:
 5. evaluate guardrail
 6. execute or pause/deny
 7. append audit events
-8. stop on finish, waiting approval, failed, blocked, max steps
+8. stop on finish, waiting approval, failed, or max steps; keep `blocked` as a reserved status
 
 Implement `MockLLM` as an ordered response queue and store received contexts for assertions.
 
@@ -801,7 +807,7 @@ git commit -m "feat: add cli demos and credentials"
 **Interfaces:**
 - Consumes: `AgentLoop`, `SQLiteStore`
 - Produces: `create_app(store_path: Path | None = None) -> FastAPI`
-- Produces: routes `GET /`, `POST /sessions`, `GET /sessions/{id}`, `GET /approvals`, `POST /approvals/{id}/approve`, `POST /approvals/{id}/deny`
+- Produces: routes `GET /`, `POST /sessions`, `GET /sessions/{id}`, `GET /settings`, `POST /settings`, `GET /approvals`, `POST /approvals/{id}/approve`, `POST /approvals/{id}/deny`, `POST /approvals/{id}/stop`, `GET /guardrail`
 
 - [x] **Step 1: Write failing WebUI tests**
 
@@ -843,7 +849,7 @@ Implement simple server-rendered HTML pages:
 
 - index with task form
 - session page with trace
-- approvals page with approve/deny buttons
+- approvals page with `Approve once` / `Deny action` / `Stop task` buttons
 
 Do not add a large frontend build system.
 
@@ -862,49 +868,55 @@ git commit -m "feat: add minimal approval webui"
 
 ---
 
-### Task 9: Docker、CI、README、过程文档和最终验证
+### Task 9: Docker、GitHub Actions、README、过程文档和最终验证
 
 **Files:**
 - Modify: `README.md`
-- Create: `.gitlab-ci.yml`
+- Create: `.github/workflows/ci.yml`
 - Create: `Dockerfile`
 - Create: `SPEC_PROCESS.md`
 - Create: `AGENT_LOG.md`
 - Modify: `PLAN.md`
-- Modify: `docs/superpowers/plans/2026-07-10-guarded-harness.md`
+- Modify: `docs/archive/superpowers/plans/2026-07-10-guarded-harness.md`
 
 **Interfaces:**
 - Consumes: all previous tasks
 - Produces: documented install/run/test/Docker/security instructions
-- Produces: CI `unit-test` job
+- Produces: GitHub Actions Python test matrix
 
 - [x] **Step 1: Write CI and Docker smoke expectations**
 
-Create `.gitlab-ci.yml`:
+Create `.github/workflows/ci.yml`:
 
 ```yaml
-stages:
-  - test
-  - build
+name: CI
 
-unit-test:
-  stage: test
-  image: python:3.11-slim
-  script:
-    - python -m pip install --upgrade pip
-    - pip install -e ".[dev]"
-    - pytest
-    - python -m compileall src
+on:
+  push:
+    branches:
+      - main
+      - dev
+      - "feature/**"
+  pull_request:
+    branches:
+      - main
+      - dev
 
-docker-build:
-  stage: build
-  image: docker:27
-  services:
-    - docker:27-dind
-  script:
-    - docker build -t guarded-harness .
-  rules:
-    - if: '$CI_COMMIT_BRANCH'
+jobs:
+  test:
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - run: python -m pip install -e ".[dev]"
+      - run: python -m pytest -q
+      - run: python -m compileall src tests
 ```
 
 Create `Dockerfile`:
@@ -974,7 +986,7 @@ Expected:
 - [x] **Step 5: Commit**
 
 ```bash
-git add README.md .gitlab-ci.yml Dockerfile SPEC_PROCESS.md AGENT_LOG.md PLAN.md docs/superpowers/plans/2026-07-10-guarded-harness.md
+git add README.md .github/workflows/ci.yml Dockerfile SPEC_PROCESS.md AGENT_LOG.md PLAN.md docs/archive/superpowers/plans/2026-07-10-guarded-harness.md
 git commit -m "docs: add distribution ci and process documentation"
 ```
 
@@ -987,6 +999,20 @@ git commit -m "docs: add distribution ci and process documentation"
 - 实现每个 task 时必须使用 `superpowers:test-driven-development`，先写失败测试，再写实现。
 - 完成每个 task 后使用 code review 流程检查：先 spec 合规，再代码质量。
 - 正式实现前需进行课程要求的冷启动验证：让不同类型 agent 仅凭 `SPEC.md` + `PLAN.md` 尝试 1-2 个 task，并把结果记录到 `SPEC_PROCESS.md`。
+
+## Process Evidence Summary
+
+本计划的主线按依赖顺序推进：Task 1--2 建立数据模型和持久化，Task 3--4 建立治理与工具执行，
+Task 5--6 建立 agent loop 与 HITL，Task 7--8 提供 CLI/WebUI 入口，Task 9 完成分发和文档。
+后续 Task 12--14 是在核心机制完成后的演示体验、布局和凭据处理增强。
+
+关键复审结论已经回写到本计划：
+
+- shell 执行必须使用 argv 与 `shell=False`，并拒绝 shell control syntax。
+- WebUI 审批语义必须拆成 `Approve once`、`Deny action`、`Stop task`。
+- CLI 跨进程审批恢复不能声称重建 live provider 对话上下文。
+- API key 只能通过 keyring、环境变量或当前进程内存进入系统。
+- CI 使用 GitHub Actions，与当前仓库结构一致。
 
 ---
 
@@ -1017,9 +1043,8 @@ git commit -m "docs: add distribution ci and process documentation"
   - Commit: `33ecf68`
 - [x] **Step 5: Record final commit hashes and lessons**
   - Commit: `543f6e1`
-- [x] **Step 6: Push branch and open PR**
-  - Status: blocked until user explicitly approves exporting branch `feature/guarded-harness-impl` to remote `https://github.com/ZClucky-123/Harness.git`
-  - Commit: pending
+- [x] **Step 6: Record integration status**
+  - Result: GitHub Actions workflow is present for repository validation; remote PR/push is handled outside this local implementation plan.
 
 ---
 
@@ -1091,3 +1116,40 @@ git commit -m "docs: add distribution ci and process documentation"
 - [x] **Step 6: Verify and document**
   - Result: `262 passed, 2 skipped`; `compileall src tests` passed; `git diff --check` passed; Docker build passed after retrying a Docker Desktop BuildKit cache error.
   - Commit: this documentation commit
+
+---
+
+## Task 15: Unified Provider Config and Interactive CLI
+
+**Started:** 2026-07-19 +08:00
+
+**Superpowers skills:** `brainstorming`, `test-driven-development`, `verification-before-completion`.
+
+**Manual intervention:** User requested a dedicated configuration file for API provider settings and an interactive `harness run` mode similar to common coding-agent harness CLIs.
+
+**Files:**
+- Modify: `src/guarded_harness/config/schema.py`
+- Modify: `src/guarded_harness/config/loader.py`
+- Modify: `src/guarded_harness/cli.py`
+- Test: `tests/unit/test_config_loader.py`
+- Test: `tests/integration/test_cli.py`
+- Modify: `README.md`
+- Modify: `SPEC.md`
+- Modify: `SPEC_PROCESS.md`
+- Modify: `AGENT_LOG.md`
+- Add: `docs/archive/superpowers/specs/2026-07-19-unified-config-interactive-cli-design.md`
+
+- [x] **Step 1: Record design**
+  - Result: Added Superpowers design record under `docs/archive/superpowers/specs`.
+- [x] **Step 2: Add failing config loader tests**
+  - Result: Tests failed because `load_config()` did not accept `workspace_root` and did not read provider files.
+- [x] **Step 3: Add failing CLI tests**
+  - Result: Tests failed because CLI did not use provider file mode and `harness run` required a task argument.
+- [x] **Step 4: Implement shared non-secret provider config loading**
+  - Result: `.guarded-harness/provider.json` can define `mode`, `base_url`, `model`, `timeout`; env vars override it; file API keys are ignored.
+- [x] **Step 5: Implement interactive `harness run`**
+  - Result: No-argument `harness run` opens a prompt with `:help`, `:mode`, `:approvals`, `:exit`, `:quit`; each normal line runs a new session.
+- [x] **Step 6: Document and verify**
+  - Result: README/SPEC/PROCESS/LOG document config precedence, security boundary and interactive CLI scope; full verification reached `266 passed, 2 skipped`.
+- [x] **Step 7: Add first-run provider config initialization**
+  - Result: `harness config init` creates `.guarded-harness/provider.json` for a freshly cloned workspace, refuses to overwrite existing config unless `--force` is supplied, and `config/provider.example.json` documents the committed template.

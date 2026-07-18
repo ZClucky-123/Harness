@@ -1,3 +1,5 @@
+import json
+
 from typer.testing import CliRunner
 import httpx
 
@@ -77,6 +79,51 @@ def test_credentials_clear_never_prints_supplied_key(monkeypatch):
     assert supplied_key not in result.stdout
 
 
+def test_config_init_creates_provider_file_for_new_workspace(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+
+    result = runner.invoke(app, ["config", "init"])
+
+    provider_file = tmp_path / ".guarded-harness" / "provider.json"
+    assert result.exit_code == 0
+    assert provider_file.exists()
+    assert json.loads(provider_file.read_text(encoding="utf-8")) == {
+        "mode": "live",
+        "base_url": "https://njusehub.info/v1",
+        "model": "deepseek-v4-flash",
+        "timeout": 30,
+    }
+    assert "provider config written" in result.stdout
+    assert "API key" in result.stdout
+
+
+def test_config_init_refuses_to_overwrite_existing_provider_file(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    provider_dir = tmp_path / ".guarded-harness"
+    provider_dir.mkdir()
+    provider_file = provider_dir / "provider.json"
+    provider_file.write_text('{"mode":"mock","model":"custom"}', encoding="utf-8")
+
+    result = runner.invoke(app, ["config", "init"])
+
+    assert result.exit_code != 0
+    assert json.loads(provider_file.read_text(encoding="utf-8")) == {"mode": "mock", "model": "custom"}
+    assert "already exists" in result.stdout
+
+
+def test_config_init_force_overwrites_existing_provider_file(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    provider_dir = tmp_path / ".guarded-harness"
+    provider_dir.mkdir()
+    provider_file = provider_dir / "provider.json"
+    provider_file.write_text('{"mode":"mock","model":"custom"}', encoding="utf-8")
+
+    result = runner.invoke(app, ["config", "init", "--force"])
+
+    assert result.exit_code == 0
+    assert json.loads(provider_file.read_text(encoding="utf-8"))["model"] == "deepseek-v4-flash"
+
+
 def test_live_run_uses_configured_provider_and_finishes(tmp_path, monkeypatch):
     credentials = CredentialStore(keyring_backend=InMemoryKeyring())
     credentials.set_key("live-secret")
@@ -107,6 +154,54 @@ def test_live_run_uses_configured_provider_and_finishes(tmp_path, monkeypatch):
     assert calls[0][1]["headers"]["Authorization"] == "Bearer live-secret"
     assert calls[0][1]["json"]["model"] == "deepseek-v4-flash"
     assert "live-secret" not in result.stdout
+
+
+def test_live_run_uses_provider_config_file_when_environment_is_unset(tmp_path, monkeypatch):
+    credentials = CredentialStore(keyring_backend=InMemoryKeyring())
+    credentials.set_key("file-config-secret")
+    config_dir = tmp_path / ".guarded-harness"
+    config_dir.mkdir()
+    (config_dir / "provider.json").write_text(
+        '{"mode":"live","base_url":"https://file-config.example/v1","model":"file-model","timeout":17}',
+        encoding="utf-8",
+    )
+    calls = []
+
+    def fake_post(*args, **kwargs):
+        calls.append((args, kwargs))
+        request = httpx.Request("POST", args[0])
+        return httpx.Response(
+            200,
+            request=request,
+            json={"choices": [{"message": {"content": '{"type":"finish","message":"from file config"}'}}]},
+        )
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("GUARDED_HARNESS_BASE_URL", raising=False)
+    monkeypatch.delenv("GUARDED_HARNESS_MODEL", raising=False)
+    monkeypatch.setattr("guarded_harness.cli._credential_store", lambda: credentials)
+    monkeypatch.setattr("guarded_harness.llm.openai_compatible.httpx.post", fake_post)
+
+    result = runner.invoke(app, ["run", "use shared provider config"])
+
+    assert result.exit_code == 0
+    assert "finished: from file config" in result.stdout
+    assert calls[0][0][0] == "https://file-config.example/v1/chat/completions"
+    assert calls[0][1]["json"]["model"] == "file-model"
+    assert calls[0][1]["timeout"] == 17
+    assert "file-config-secret" not in result.stdout
+
+
+def test_run_without_task_starts_interactive_mode(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+
+    result = runner.invoke(app, ["run"], input="summarize this repo\n:mode\n:approvals\n:exit\n")
+
+    assert result.exit_code == 0
+    assert "Guarded Harness interactive mode" in result.stdout
+    assert "finished: mock run completed" in result.stdout
+    assert "mode: mock" in result.stdout
+    assert "no pending approvals" in result.stdout
 
 
 def test_approvals_list_and_approve_resume_demo_session(tmp_path, monkeypatch):

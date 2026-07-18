@@ -1,0 +1,6 @@
+{
+  "mode": "live",
+  "base_url": "https://njusehub.info/v1",
+  "model": "deepseek-v4-flash",
+  "timeout": 30
+}

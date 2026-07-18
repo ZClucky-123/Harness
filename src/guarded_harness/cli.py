@@ -17,9 +17,19 @@ app = typer.Typer(help="Guarded local coding-agent harness.")
 demo_app = typer.Typer(help="Run deterministic mechanism demonstrations.")
 approvals_app = typer.Typer(help="Inspect and resolve pending approvals.")
 credentials_app = typer.Typer(help="Manage the API credential in the OS keyring.")
+config_app = typer.Typer(help="Initialize and inspect local provider configuration.")
 app.add_typer(demo_app, name="demo")
 app.add_typer(approvals_app, name="approvals")
 app.add_typer(credentials_app, name="credentials")
+app.add_typer(config_app, name="config")
+
+
+DEFAULT_PROVIDER_CONFIG = {
+    "mode": "live",
+    "base_url": "https://njusehub.info/v1",
+    "model": "deepseek-v4-flash",
+    "timeout": 30,
+}
 
 
 def _workspace() -> Path:
@@ -43,6 +53,16 @@ def _print_events(loop: AgentLoop, session_id: str) -> None:
             typer.echo(f"feedback_kind={feedback_kind}")
         if event.event_type == "finished":
             typer.echo(f"finished: {event.payload.get('message', '')}")
+
+
+def _print_approvals() -> None:
+    approvals = _store().list_unfinished_approvals()
+    if not approvals:
+        typer.echo("no pending approvals")
+        return
+    for approval in approvals:
+        typer.echo(f"{approval.id} {approval.status}: {approval.redacted_reason}")
+        typer.echo(approval.redacted_action_json)
 
 
 def _demo_loop(
@@ -101,13 +121,7 @@ def demo_hitl(wait_only: bool = typer.Option(False, "--wait-only", help="Leave t
 
 @approvals_app.command("list")
 def list_approvals() -> None:
-    approvals = _store().list_unfinished_approvals()
-    if not approvals:
-        typer.echo("no pending approvals")
-        return
-    for approval in approvals:
-        typer.echo(f"{approval.id} {approval.status}: {approval.redacted_reason}")
-        typer.echo(approval.redacted_action_json)
+    _print_approvals()
 
 
 def _resume_approval(approval_id: str, approved: bool) -> None:
@@ -168,20 +182,79 @@ def clear_credential() -> None:
     typer.echo("credential cleared")
 
 
+@config_app.command("init")
+def init_config(
+    force: bool = typer.Option(False, "--force", help="Overwrite an existing provider config file."),
+) -> None:
+    provider_file = _workspace() / ".guarded-harness" / "provider.json"
+    if provider_file.exists() and not force:
+        typer.echo(f"provider config already exists: {provider_file}")
+        raise typer.Exit(code=1)
+    provider_file.parent.mkdir(parents=True, exist_ok=True)
+    provider_file.write_text(json.dumps(DEFAULT_PROVIDER_CONFIG, indent=2) + "\n", encoding="utf-8")
+    typer.echo(f"provider config written: {provider_file}")
+    typer.echo("API key is not stored in this file; run 'harness credentials set' to save it in the OS keyring.")
+
+
 @app.command("run")
-def run_task(task: str, live: bool = typer.Option(False, "--live", help="Use the configured OpenAI-compatible provider.")) -> None:
+def run_task(
+    task: str | None = typer.Argument(None),
+    live: bool = typer.Option(False, "--live", help="Use the configured OpenAI-compatible provider."),
+) -> None:
+    if task is None:
+        _interactive_run(force_live=live)
+        return
+    _run_single_task(task, force_live=live)
+
+
+def _run_single_task(task: str, force_live: bool = False) -> None:
     store = _store()
-    if live:
-        key = _credential_store().get_key()
-        if key is None:
-            raise typer.BadParameter("no credential configured; run 'harness credentials set' first")
-        config = load_config()
-        llm = OpenAICompatibleProvider(config.base_url, config.model, key, config.timeout)
-    else:
-        llm = MockLLM([json.dumps({"type": "finish", "message": "mock run completed"})])
+    config = load_config(workspace_root=_workspace())
+    llm = _llm_for_config(config, force_live=force_live)
     session = AgentLoop.for_workspace(_workspace(), llm, store).run(task)
     _print_events(AgentLoop.for_workspace(_workspace(), MockLLM([]), store), session.id)
     typer.echo(f"status={session.status.value}")
+
+
+def _llm_for_config(config, force_live: bool = False):
+    use_live = force_live or config.mode == "live"
+    if not use_live:
+        return MockLLM([json.dumps({"type": "finish", "message": "mock run completed"})])
+    key = _credential_store().get_key() or config.api_key
+    if key is None:
+        raise typer.BadParameter("no credential configured; run 'harness credentials set' first")
+    return OpenAICompatibleProvider(config.base_url, config.model, key, config.timeout)
+
+
+def _interactive_run(force_live: bool = False) -> None:
+    config = load_config(workspace_root=_workspace())
+    mode = "live" if force_live or config.mode == "live" else "mock"
+    typer.echo("Guarded Harness interactive mode")
+    typer.echo(f"mode: {mode} | model: {config.model}")
+    typer.echo("Type :help for commands, :exit to quit.")
+    while True:
+        try:
+            line = typer.prompt(">")
+        except (EOFError, KeyboardInterrupt):
+            typer.echo()
+            break
+        task = line.strip()
+        if not task:
+            continue
+        if task in {":exit", ":quit"}:
+            break
+        if task == ":help":
+            typer.echo(":help, :mode, :approvals, :exit, :quit")
+            continue
+        if task == ":mode":
+            config = load_config(workspace_root=_workspace())
+            mode = "live" if force_live or config.mode == "live" else "mock"
+            typer.echo(f"mode: {mode} | model: {config.model}")
+            continue
+        if task == ":approvals":
+            _print_approvals()
+            continue
+        _run_single_task(task, force_live=force_live)
 
 
 @app.command("serve")
