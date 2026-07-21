@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ title }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', path='styles.css') }}?v={{ static_version }}">
+</head>
+<body data-history-refresh="partial">
+  <main class="chat-page">
+    <header class="site-header">
+      <nav class="nav-links">
+        <a href="/">Chat</a>
+        <a href="/settings">Provider Settings</a>
+        <a class="active" href="/approvals">Approvals{% if pending_approval_count %}<span class="nav-count">{{ pending_approval_count }}</span>{% endif %}</a>
+      </nav>
+    </header>
+    <div class="app-layout">
+      <aside class="session-sidebar">
+        <a class="sidebar-brand" href="/">Guarded Harness</a>
+        <div class="sidebar-scroll">
+          {% for group in sidebar_groups %}
+            <section class="sidebar-group">
+              <h2>{{ group.label }}</h2>
+              <nav class="sidebar-list">
+                {% for item in group.sessions %}
+                  <a class="sidebar-item" href="{{ item.trace_url }}">
+                    <span>{{ item.task }}</span>
+                    <small>{{ item.status_label }} · {{ item.step_label }}</small>
+                  </a>
+                {% endfor %}
+              </nav>
+            </section>
+          {% else %}
+            <p class="empty-state">No sessions yet.</p>
+          {% endfor %}
+        </div>
+      </aside>
+      <section class="chat-main">
+        <section class="hero">
+          <h1>Approvals</h1>
+          <p>Pending {{ approval_counts.pending }} · Executing {{ approval_counts.executing }} · Completed {{ approval_counts.completed }} · Failed {{ approval_counts.failed }}</p>
+        </section>
+        {% if not approvals %}
+          <p class="empty-state">No approval records yet.</p>
+        {% else %}
+          {% for status, items in approval_groups.items() if items %}
+            <section class="panel">
+              <h2>{{ status | title }} ({{ items | length }})</h2>
+              {% for approval in items %}
+                <article class="approval-item">
+                  <p><strong>{{ approval.operation }}</strong> — {{ approval.state_title }}</p>
+                  <p class="approval-meta">Task: {{ approval.session_task }} · Tool: {{ approval.tool }}{% if approval.target %} · Target: {{ approval.target }}{% endif %}</p>
+                  <p class="approval-meta">{{ approval.display_reason }}</p>
+                  {% if approval.status == "pending" %}
+                    <div class="approval-actions">
+                      <form action="/approvals/{{ approval.id }}/approve" method="post"><button type="submit">Approve</button></form>
+                      <form action="/approvals/{{ approval.id }}/deny" method="post"><button class="deny-action" type="submit">Deny action</button></form>
+                      <form action="/approvals/{{ approval.id }}/stop" method="post"><button class="stop-task" type="submit">Stop task</button></form>
+                    </div>
+                  {% elif approval.status == "executing" %}
+                    <form action="/approvals/{{ approval.id }}/mark-failed" method="post" class="approval-actions">
+                      <input name="reason" placeholder="Failure reason" required>
+                      <button class="stop-task" type="submit">Mark failed</button>
+                    </form>
+                  {% endif %}
+                  <div class="approval-links">
+                    <a class="approval-text-link" href="{{ approval.trace_url }}">View trace</a>
+                    <details>
+                      <summary class="approval-text-link">Details</summary>
+                      <pre>{{ approval.action_json }}</pre>
+                    </details>
+                  </div>
+                </article>
+                {% if not loop.last %}<hr>{% endif %}
+              {% endfor %}
+            </section>
+          {% endfor %}
+        {% endif %}
+      </section>
+    </div>
+  </main>
+  {% include "_history_refresh.html" %}
+</body>
+</html>
