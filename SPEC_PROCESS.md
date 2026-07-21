@@ -118,8 +118,8 @@ checkpoint 风险。
 
 本轮采用 TDD：先写 `tests/unit/test_config_loader.py` 验证 provider 文件读取、环境变量覆盖
 和 API key 不从文件加载；再写 CLI 集成测试验证配置文件驱动 live run，以及
-`harness run` 无参数进入交互模式。测试先失败后实现，最终完整验证结果为
-`266 passed, 2 skipped`。
+`harness run` 无参数进入交互模式。测试先失败后实现；最终提交前完整验证结果更新为
+`269 passed, 2 skipped, 1 warning`，`compileall src tests` 通过。
 
 随后从“刚 clone 仓库的用户没有 `.guarded-harness` 目录”这一使用场景出发，继续补充
 `harness config init`。该命令负责创建 `.guarded-harness/provider.json` 并写入默认 live
@@ -137,3 +137,6 @@ provider 配置；已有配置默认不覆盖，需要重置时使用 `--force`�
   `.github/workflows/ci.yml`，面向安装、运行和自动验证。
 - 归档材料：`docs/course` 保存课程原始要求，`docs/archive/superpowers` 保存 specs、
   plans、SDD reports 和 handoff，避免根目录过载但保留过程证据。
+- 分发与部署材料：GitHub Release `v0.1.0` 提供源码包和 wheel；线上 WebUI 部署在
+  `http://39.107.87.32/`，使用阿里云轻量应用服务器、Python 3.11 虚拟环境和 `systemd`
+  后台服务运行 FastAPI。

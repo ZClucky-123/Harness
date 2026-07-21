@@ -9,6 +9,16 @@ shell，而是要求模型返回结构化 action，再由项目代码完成解�
 - **Live 模式**：显式开启，支持 OpenAI-compatible provider，例如 NJU SE Hub。
 - **CI 验证**：GitHub Actions 在 Python 3.11/3.12 上运行测试和编译检查。
 
+## 提交入口
+
+- **线上 WebUI**：http://39.107.87.32/
+- **GitHub Release**：https://github.com/ZClucky-123/Harness/releases/tag/v0.1.0
+- **源码仓库**：https://github.com/ZClucky-123/Harness
+
+线上 WebUI 部署在阿里云轻量应用服务器上，使用 Ubuntu 22.04、Python 3.11 虚拟环境和
+`systemd` 后台服务运行 FastAPI。服务默认使用 mock/default 模式，便于评审者直接访问页面、
+查看 session trace、approval queue 和 guardrail demo；真实 provider key 不放入公网演示环境。
+
 ## 项目亮点
 
 - **治理优先**：项目的核心不是聊天界面，而是把 LLM 输出变成受控 action 的 harness。
@@ -78,7 +88,7 @@ python -m compileall -q src tests
 最近一次本地验证结果：
 
 ```text
-266 passed, 2 skipped
+269 passed, 2 skipped, 1 warning
 compileall src tests: passed
 ```
 
@@ -203,6 +213,21 @@ harness approvals approve <id>
 
 ## WebUI
 
+线上 WebUI：
+
+```text
+http://39.107.87.32/
+```
+
+可直接访问的页面包括：
+
+```text
+http://39.107.87.32/
+http://39.107.87.32/settings
+http://39.107.87.32/approvals
+http://39.107.87.32/guardrail
+```
+
 启动本地 WebUI：
 
 ```powershell
@@ -263,6 +288,70 @@ docker run --rm -p 8000:8000 `
 Docker 容器通常没有可用的桌面 OS keyring。容器中推荐使用环境变量注入 API key，或在
 Provider Settings 输入 key 但不勾选保存。未保存的 key 只存在于当前 FastAPI 进程内，容器重启后失效。
 
+## 线上部署
+
+当前线上版本部署在阿里云轻量应用服务器：
+
+```text
+WebUI: http://39.107.87.32/
+系统: Ubuntu 22.04
+进程管理: systemd
+工作目录: /opt/guarded-harness/data
+应用代码: /opt/Harness
+公网端口: 80
+```
+
+服务器使用 Python 虚拟环境安装 release 对应代码，并通过 `systemd` 托管 `uvicorn`：
+
+```bash
+/opt/Harness/.venv/bin/uvicorn guarded_harness.web.app:create_app \
+  --factory \
+  --host 0.0.0.0 \
+  --port 80
+```
+
+后台服务名为 `guarded-harness`。常用维护命令：
+
+```bash
+systemctl status guarded-harness --no-pager
+systemctl restart guarded-harness
+journalctl -u guarded-harness -f
+```
+
+SQLite 状态库写入 `/opt/guarded-harness/data/.guarded-harness/state.sqlite3`。该数据库用于演示
+session、approval、audit 和 memory 的持久化；它不是 secrets vault，也不存储 API key。
+
+更新线上版本：
+
+```bash
+cd /opt/Harness
+git pull origin main
+source .venv/bin/activate
+python -m pip install .
+systemctl restart guarded-harness
+```
+
+## Release
+
+正式提交版本：
+
+```text
+https://github.com/ZClucky-123/Harness/releases/tag/v0.1.0
+```
+
+Release 附件：
+
+- `guarded-harness-0.1.0-source.zip`：源码、文档、测试和 Dockerfile。
+- `guarded_harness-0.1.0-py3-none-any.whl`：可安装的 Python wheel，安装后提供 `harness` CLI。
+
+使用 wheel：
+
+```powershell
+python -m pip install guarded_harness-0.1.0-py3-none-any.whl
+harness demo guardrail
+harness serve
+```
+
 ## 凭据与安全边界
 
 - API key 不应进入仓库、日志、审计事件、CLI 输出或 HTML。
@@ -280,6 +369,8 @@ Provider Settings 输入 key 但不勾选保存。未保存的 key 只存在于�
 
 ## 课程提交清单
 
+- 线上 WebUI：`http://39.107.87.32/`。
+- Release：`https://github.com/ZClucky-123/Harness/releases/tag/v0.1.0`。
 - 源码：`src/guarded_harness`。
 - 测试：`tests/unit` 和 `tests/integration`。
 - 本地运行说明：本 README 的快速开始、CLI、WebUI 和 Docker 章节。
@@ -330,7 +421,7 @@ docs/archive/    历史设计、计划、报告和交接文档
 - Web live session 可以在同一 FastAPI 进程内复用已保存或临时输入的 key 继续审批后的 provider loop。
 - SQLite 状态文件是本地状态库，不是加密 secrets vault。
 - Docker 的 `0.0.0.0:8000` 是 bind address，浏览器应访问 `http://127.0.0.1:8000`。
-- 当前仓库未包含部署配置；课程提交时可先提交源码、文档、Dockerfile 和 GitHub Actions 验证结果。
+- 线上演示环境默认不配置真实 provider key；live mode 需要评审者在本地或私有环境中自行配置 key。
 
 ## 第三方许可证摘要
 

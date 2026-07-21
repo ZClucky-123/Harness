@@ -233,7 +233,7 @@ base URL、model 和 timeout，API key 继续通过 OS keyring 或环境变量�
 
 | 命令 | 结果 |
 | --- | --- |
-| `.\.venv\Scripts\python.exe -m pytest -q` | `266 passed, 2 skipped` |
+| `.\.venv\Scripts\python.exe -m pytest -q` | `269 passed, 2 skipped, 1 warning` |
 | `.\.venv\Scripts\python.exe -m compileall -q src tests` | PASS |
 | `git diff --check` | PASS |
 | `.github/workflows/ci.yml` | Python 3.11/3.12 matrix，安装 `.[dev]`，运行 pytest 和 compileall |

@@ -218,12 +218,27 @@ WebUI ------/       |
 - `harness config init`
 - `harness config init --force`
 
-正式分发使用 Docker：
+正式交付包含三类入口：
+
+- GitHub Release：`https://github.com/ZClucky-123/Harness/releases/tag/v0.1.0`
+- 线上 WebUI：`http://39.107.87.32/`
+- 本地 CLI / WebUI / Docker 运行说明：见 `README.md`
+
+Release 中包含源码包和 Python wheel。源码包用于评审者下载后运行测试、查看文档和构建 Docker
+镜像；wheel 用于在 Python 3.11+ 环境中直接安装 `harness` CLI。
+
+Docker 作为可复现分发方式：
 
 - `docker build -t guarded-harness .`
 - `docker run -p 8000:8000 guarded-harness`
 
-Docker 默认启动 FastAPI WebUI。README 还会说明本地 CLI 执行和 mock 模式演示。
+Docker 默认启动 FastAPI WebUI。README 还说明本地 CLI、mock 机制演示、release 安装和线上部署方式。
+
+线上 WebUI 部署在阿里云轻量应用服务器上。服务器使用 Ubuntu 22.04、Python 3.11 虚拟环境和
+`systemd` 管理 FastAPI 进程；`uvicorn` 监听 `0.0.0.0:80`，工作目录为
+`/opt/guarded-harness/data`，SQLite 状态文件写入该目录下的 `.guarded-harness/state.sqlite3`。
+线上环境默认不注入真实 API key，仅用于 mock/default 演示、session trace、approval queue 和
+Guardrail Demo 检查。
 
 统一 provider 配置文件为 `.guarded-harness/provider.json`。刚 clone 的 workspace 可以通过
 `harness config init` 自动生成该文件；仓库内的 `config/provider.example.json` 作为可提交示例。
@@ -310,6 +325,8 @@ Coding 场景的反馈信号：
 - CLI 在无 task 参数时可以进入交互模式，并支持 `:mode`、`:approvals` 和退出命令。
 - WebUI 可以创建任务、展示轨迹，并通过 `Approve once`、`Deny action`、`Stop task` 处理待审批动作。
 - Docker image 可以构建并启动 WebUI。
+- GitHub Release 提供源码包与 wheel，评审者可以从 release 获取固定版本。
+- 线上部署 URL 可以访问 FastAPI WebUI，并能打开 Chat Workspace、Provider Settings、Approvals 和 Guardrail Demo。
 - `.github/workflows/ci.yml` 包含 Python 3.11/3.12 测试矩阵。
 - README 说明安装、运行、Docker、凭据和安全边界。
 
@@ -337,4 +354,5 @@ Coding 场景的反馈信号：
 - Policy 规则可能过宽或过窄。规则会明确编码，并通过测试逐步扩展。
 - 跨进程 live provider 对话尚未持久化。CLI 审批恢复只执行已审批动作或记录拒绝反馈并结束本轮；Web live session 仅在同一进程中复用已保存或临时输入的 key 继续。
 - SQLite 状态库不是加密 secrets vault；当前策略是拒绝新 secret action 入库，并对历史数据显示时脱敏。
+- 线上演示环境默认不配置真实 provider key，避免把个人 API key 放入公网服务；live provider 验证应在本地或私有环境中配置 key 后进行。
 - 冷启动验证记录和 Superpowers 过程产物已归档在 `docs/archive/superpowers/`，根目录保留最终交付文档。

@@ -1150,6 +1150,6 @@ Task 5--6 建立 agent loop 与 HITL，Task 7--8 提供 CLI/WebUI 入口，Task 
 - [x] **Step 5: Implement interactive `harness run`**
   - Result: No-argument `harness run` opens a prompt with `:help`, `:mode`, `:approvals`, `:exit`, `:quit`; each normal line runs a new session.
 - [x] **Step 6: Document and verify**
-  - Result: README/SPEC/PROCESS/LOG document config precedence, security boundary and interactive CLI scope; full verification reached `266 passed, 2 skipped`.
+  - Result: README/SPEC/PROCESS/LOG document config precedence, security boundary and interactive CLI scope; later final verification reached `269 passed, 2 skipped, 1 warning`.
 - [x] **Step 7: Add first-run provider config initialization**
   - Result: `harness config init` creates `.guarded-harness/provider.json` for a freshly cloned workspace, refuses to overwrite existing config unless `--force` is supplied, and `config/provider.example.json` documents the committed template.
