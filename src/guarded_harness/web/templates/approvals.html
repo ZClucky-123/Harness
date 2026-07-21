@@ -52,10 +52,11 @@
                   <p><strong>{{ approval.operation }}</strong> — {{ approval.state_title }}</p>
                   <p class="approval-meta">Task: {{ approval.session_task }} · Tool: {{ approval.tool }}{% if approval.target %} · Target: {{ approval.target }}{% endif %}</p>
                   <p class="approval-meta">{{ approval.display_reason }}</p>
+                  <p class="form-error hidden" data-approval-error></p>
                   {% if approval.status == "pending" %}
                     <div class="approval-actions">
-                      <form action="/approvals/{{ approval.id }}/approve" method="post"><button type="submit">Approve</button></form>
-                      <form action="/approvals/{{ approval.id }}/deny" method="post"><button class="deny-action" type="submit">Deny action</button></form>
+                      <form id="approval-approve-{{ approval.id }}" action="/approvals/{{ approval.id }}/approve" method="post">{% if approval.requires_live_key %}<input type="hidden" name="api_key" data-browser-api-key>{% endif %}<button type="submit">Approve</button></form>
+                      <form id="approval-deny-{{ approval.id }}" action="/approvals/{{ approval.id }}/deny" method="post">{% if approval.requires_live_key %}<input type="hidden" name="api_key" data-browser-api-key>{% endif %}<button class="deny-action" type="submit">Deny action</button></form>
                       <form action="/approvals/{{ approval.id }}/stop" method="post"><button class="stop-task" type="submit">Stop task</button></form>
                     </div>
                   {% elif approval.status == "executing" %}
@@ -80,6 +81,24 @@
       </section>
     </div>
   </main>
+  <script>
+    document.querySelectorAll("form").forEach((form) => {
+      form.addEventListener("submit", (event) => {
+        const browserKey = sessionStorage.getItem("guarded-harness:web-api-key") || "";
+        form.querySelectorAll("[data-browser-api-key]").forEach((input) => {
+          input.value = browserKey;
+        });
+        if (form.querySelector("[data-browser-api-key]") && !browserKey) {
+          event.preventDefault();
+          const error = form.closest(".approval-item")?.querySelector("[data-approval-error]");
+          if (error) {
+            error.textContent = "Add an API key in Provider Settings before using live mode.";
+            error.classList.remove("hidden");
+          }
+        }
+      });
+    });
+  </script>
   {% include "_history_refresh.html" %}
 </body>
 </html>

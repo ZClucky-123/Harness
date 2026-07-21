@@ -58,15 +58,32 @@
             <input id="base_url" name="base_url" value="{{ settings.base_url }}">
             <label for="model">Model</label>
             <input id="model" name="model" value="{{ settings.model }}">
-            <label for="api_key">API Key</label>
-            <input id="api_key" name="api_key" type="password" autocomplete="off" placeholder="Paste key only when updating">
-            <label><input type="checkbox" name="save_api_key"> Save key to OS keyring</label>
+            <label for="api_key">API key</label>
+            <input id="api_key" name="api_key" type="password" autocomplete="off" placeholder="Stored only in this browser session" data-browser-api-key-input>
+            <p class="muted">Saved in this browser session only. The server does not store or reuse WebUI API keys.</p>
           </fieldset>
           <button type="submit">Save provider</button>
         </form>
       </section>
     </div>
   </main>
+  <script>
+    const settingsApiKey = document.querySelector("[data-browser-api-key-input]");
+    const settingsForm = document.querySelector(".settings-card");
+    const browserKeyStorage = "guarded-harness:web-api-key";
+    const savedBrowserKey = sessionStorage.getItem(browserKeyStorage);
+    if (settingsApiKey && savedBrowserKey) {
+      settingsApiKey.value = savedBrowserKey;
+    }
+    settingsForm?.addEventListener("submit", () => {
+      const key = settingsApiKey?.value.trim() || "";
+      if (key) {
+        sessionStorage.setItem(browserKeyStorage, key);
+      } else {
+        sessionStorage.removeItem(browserKeyStorage);
+      }
+    });
+  </script>
   {% include "_history_refresh.html" %}
 </body>
 </html>

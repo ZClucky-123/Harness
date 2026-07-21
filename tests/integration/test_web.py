@@ -127,6 +127,9 @@ def test_composer_submit_clears_input_and_prevents_duplicate_submits():
     assert "const submittedTask = taskInput.value;" in html
     assert "taskSubmitValue.value = submittedTask;" in html
     assert 'taskInput.removeAttribute("name");' in html
+    assert 'const composerError = document.querySelector("[data-composer-error]");' in html
+    assert "Add an API key in Provider Settings before using live mode." in html
+    assert "showComposerError" in html
     assert "isSubmitting = true;" in html
     assert "taskInput.value = \"\";" in html
     assert "appendOptimisticUserMessage(submittedTask);" in html
@@ -359,6 +362,10 @@ def test_provider_settings_page_loads_defaults(tmp_path: Path, monkeypatch):
     assert "https://njusehub.info/v1" in response.text
     assert "deepseek-v4-flash" in response.text
     assert "key missing" in response.text
+    assert 'name="api_key"' in response.text
+    assert 'data-browser-api-key-input' in response.text
+    assert "sessionStorage" in response.text
+    assert 'name="save_api_key"' not in response.text
 
 
 def test_primary_navigation_omits_guardrail_link_but_direct_page_loads(tmp_path: Path, monkeypatch):
@@ -409,7 +416,7 @@ def test_history_restore_refreshes_chat_page_and_partially_updates_other_pages(t
         assert "window.scrollTo(scrollX, scrollY);" in response.text
 
 
-def test_provider_settings_save_updates_dashboard_without_persisting_key(tmp_path: Path, monkeypatch):
+def test_provider_settings_save_updates_dashboard_without_accepting_web_key(tmp_path: Path, monkeypatch):
     credentials = _FakeCredentials(None)
     monkeypatch.setattr("guarded_harness.web.app._credential_store", lambda: credentials)
     client = TestClient(create_app(tmp_path / "state.sqlite3", workspace_root=tmp_path))
@@ -429,13 +436,15 @@ def test_provider_settings_save_updates_dashboard_without_persisting_key(tmp_pat
     assert response.status_code == 200
     assert "live" in response.text
     assert "qwen-turbo" in response.text
-    assert "key configured" in response.text
-    assert credentials.key == "settings-secret"
+    assert "key missing" in response.text
+    assert credentials.key is None
     assert "settings-secret" not in response.text
     assert "settings-secret" not in (tmp_path / ".guarded-harness" / "provider.json").read_text()
 
 
-def test_provider_settings_save_reports_keyring_failure_without_500(tmp_path: Path, monkeypatch):
+def test_provider_settings_does_not_report_keyring_failure_because_web_keys_are_not_saved(
+    tmp_path: Path, monkeypatch
+):
     credentials = _FailingCredentials()
     monkeypatch.setattr("guarded_harness.web.app._credential_store", lambda: credentials)
     client = TestClient(create_app(tmp_path / "state.sqlite3", workspace_root=tmp_path))
@@ -451,10 +460,9 @@ def test_provider_settings_save_reports_keyring_failure_without_500(tmp_path: Pa
         },
     )
 
-    assert response.status_code == 400
+    assert response.status_code == 200
     assert "Provider Settings" in response.text
-    assert "Could not save API key" in response.text
-    assert "keyring unavailable" in response.text
+    assert "Could not save API key" not in response.text
     assert "settings-secret" not in response.text
     assert "settings-secret" not in (tmp_path / ".guarded-harness" / "provider.json").read_text()
 
@@ -472,7 +480,7 @@ def test_starting_task_returns_to_workspace_with_saved_conversation(tmp_path: Pa
     assert "session_started" not in response.text
 
 
-def test_starting_task_uses_saved_live_settings_without_retyping_key(tmp_path: Path, monkeypatch):
+def test_starting_task_requires_one_time_key_even_when_server_key_exists(tmp_path: Path, monkeypatch):
     credentials = _FakeCredentials("stored-live-secret")
     captured = {}
 
@@ -493,29 +501,60 @@ def test_starting_task_uses_saved_live_settings_without_retyping_key(tmp_path: P
 
     response = client.post("/sessions", data={"task": "use saved provider"}, follow_redirects=True)
 
-    assert response.status_code == 200
+    assert response.status_code == 400
     assert "Chat Workspace" in response.text
-    assert "live done" in response.text
-    assert captured == {
-        "base_url": "https://njusehub.info/v1",
-        "model": "deepseek-v4-flash",
-        "api_key": "stored-live-secret",
-        "timeout": 30.0,
-    }
+    assert 'data-composer-error' in response.text
+    assert "API key is required" in response.text
+    assert captured == {}
 
 
-def test_settings_can_keep_submitted_key_for_current_web_process_without_persisting(
+def test_live_chat_form_accepts_browser_settings_key_when_live_mode_is_selected(tmp_path: Path, monkeypatch):
+    credentials = _FakeCredentials(None)
+    monkeypatch.setattr("guarded_harness.web.app._credential_store", lambda: credentials)
+    client = TestClient(create_app(tmp_path / "state.sqlite3", workspace_root=tmp_path))
+    client.post(
+        "/settings",
+        data={"mode": "live", "base_url": "https://njusehub.info/v1", "model": "deepseek-v4-flash"},
+    )
+
+    response = client.get("/")
+
+    assert response.status_code == 200
+    assert 'name="api_key"' in response.text
+    assert 'data-browser-api-key' in response.text
+    assert "guarded-harness:web-api-key" in response.text
+    assert 'name="save_api_key"' not in response.text
+
+
+def test_live_chat_form_still_requires_one_time_key_when_server_key_exists(tmp_path: Path, monkeypatch):
+    monkeypatch.setenv("GUARDED_HARNESS_API_KEY", "env-live-secret")
+    monkeypatch.setattr("guarded_harness.web.app._credential_store", lambda: _FakeCredentials("stored-live-secret"))
+    client = TestClient(create_app(tmp_path / "state.sqlite3", workspace_root=tmp_path))
+    client.post(
+        "/settings",
+        data={"mode": "live", "base_url": "https://njusehub.info/v1", "model": "deepseek-v4-flash"},
+    )
+
+    response = client.get("/")
+
+    assert response.status_code == 200
+    assert 'name="api_key"' in response.text
+    assert 'data-browser-api-key' in response.text
+    assert "guarded-harness:web-api-key" in response.text
+
+
+def test_settings_submitted_key_is_not_reused_by_later_web_requests(
     tmp_path: Path, monkeypatch
 ):
     credentials = _FakeCredentials(None)
-    captured = {}
+    constructed = []
 
     class FakeProvider:
         def __init__(self, base_url: str, model: str, api_key: str, timeout: float):
-            captured.update({"base_url": base_url, "model": model, "api_key": api_key, "timeout": timeout})
+            constructed.append({"base_url": base_url, "model": model, "api_key": api_key, "timeout": timeout})
 
         def complete(self, context):
-            return '{"type":"finish","message":"live done with temporary key"}'
+            return '{"type":"finish","message":"should not run"}'
 
     monkeypatch.setattr("guarded_harness.web.app._credential_store", lambda: credentials)
     monkeypatch.setattr("guarded_harness.web.app.OpenAICompatibleProvider", FakeProvider)
@@ -534,15 +573,10 @@ def test_settings_can_keep_submitted_key_for_current_web_process_without_persist
     run_response = client.post("/sessions", data={"task": "use temporary provider key"}, follow_redirects=True)
 
     assert settings_response.status_code == 200
-    assert "key configured" in settings_response.text
-    assert run_response.status_code == 200
-    assert "live done with temporary key" in run_response.text
-    assert captured == {
-        "base_url": "https://njusehub.info/v1",
-        "model": "deepseek-v4-flash",
-        "api_key": "temporary-settings-secret",
-        "timeout": 30.0,
-    }
+    assert "key missing" in settings_response.text
+    assert run_response.status_code == 400
+    assert "API key is required" in run_response.text
+    assert constructed == []
     assert credentials.key is None
     assert "temporary-settings-secret" not in run_response.text
     assert "temporary-settings-secret" not in (tmp_path / ".guarded-harness" / "provider.json").read_text()
@@ -603,7 +637,7 @@ def test_web_live_mode_requires_api_key_when_keyring_empty(tmp_path: Path, monke
     assert "API key is required" in response.text
 
 
-def test_web_live_mode_uses_environment_api_key_when_keyring_empty(tmp_path: Path, monkeypatch):
+def test_web_live_mode_does_not_use_environment_api_key(tmp_path: Path, monkeypatch):
     captured = {}
 
     class FakeProvider:
@@ -629,14 +663,9 @@ def test_web_live_mode_uses_environment_api_key_when_keyring_empty(tmp_path: Pat
         follow_redirects=True,
     )
 
-    assert response.status_code == 200
-    assert "env live done" in response.text
-    assert captured == {
-        "base_url": "https://njusehub.info/v1",
-        "model": "deepseek-v4-flash",
-        "api_key": "env-live-secret",
-        "timeout": 30.0,
-    }
+    assert response.status_code == 400
+    assert "API key is required" in response.text
+    assert captured == {}
     assert "env-live-secret" not in response.text
     assert "env-live-secret" not in (tmp_path / "state.sqlite3").read_bytes().decode("utf-8", errors="ignore")
 
@@ -680,7 +709,7 @@ def test_web_live_mode_uses_submitted_provider_config_without_persisting_key(tmp
     assert "njusehub-secret" not in (tmp_path / "state.sqlite3").read_bytes().decode("utf-8", errors="ignore")
 
 
-def test_web_live_mode_can_save_submitted_key_to_keyring(tmp_path: Path, monkeypatch):
+def test_web_live_mode_does_not_save_submitted_key_to_server_keyring(tmp_path: Path, monkeypatch):
     credentials = _FakeCredentials(None)
     monkeypatch.setattr("guarded_harness.web.app._credential_store", lambda: credentials)
     monkeypatch.setattr("guarded_harness.web.app.OpenAICompatibleProvider", _FinishingProvider)
@@ -700,7 +729,9 @@ def test_web_live_mode_can_save_submitted_key_to_keyring(tmp_path: Path, monkeyp
     )
 
     assert response.status_code == 200
-    assert credentials.key == "stored-secret"
+    assert credentials.key is None
+    assert "stored-secret" not in response.text
+    assert "stored-secret" not in (tmp_path / "state.sqlite3").read_bytes().decode("utf-8", errors="ignore")
 
 
 def test_approvals_page_loads(tmp_path: Path):
@@ -800,7 +831,11 @@ def test_denying_live_approval_continues_provider_with_feedback(tmp_path: Path, 
     )
     client = TestClient(create_app(store.db_path, workspace_root=tmp_path))
 
-    response = client.post(f"/approvals/{waiting.pending_approval_id}/deny", follow_redirects=True)
+    response = client.post(
+        f"/approvals/{waiting.pending_approval_id}/deny",
+        data={"api_key": "fresh-denial-secret"},
+        follow_redirects=True,
+    )
     events = store.list_audit(waiting.id)
 
     assert response.status_code == 200
@@ -915,7 +950,7 @@ def test_approving_action_executes_it_and_ends_recovery_round(tmp_path: Path):
     assert (tmp_path / ".env").read_text() == "MODE=prod"
 
 
-def test_live_approval_resume_reuses_saved_provider_and_continues_loop(tmp_path: Path, monkeypatch):
+def test_live_approval_resume_requires_one_time_key_even_when_server_key_exists(tmp_path: Path, monkeypatch):
     credentials = _FakeCredentials("stored-live-secret")
     constructed = []
     responses = [
@@ -939,15 +974,22 @@ def test_live_approval_resume_reuses_saved_provider_and_continues_loop(tmp_path:
     )
     waiting_response = client.post(
         "/sessions",
-        data={"task": "configure production"},
+        data={"task": "configure production", "api_key": "first-one-time-secret"},
         follow_redirects=True,
     )
     store = SQLiteStore(tmp_path / "state.sqlite3", workspace_root=tmp_path)
     waiting = store.list_sessions()[0]
 
-    response = client.post(f"/approvals/{waiting.pending_approval_id}/approve", follow_redirects=True)
+    missing_key_response = client.post(f"/approvals/{waiting.pending_approval_id}/approve", follow_redirects=True)
+    response = client.post(
+        f"/approvals/{waiting.pending_approval_id}/approve",
+        data={"api_key": "fresh-approval-secret"},
+        follow_redirects=True,
+    )
 
     assert waiting_response.status_code == 200
+    assert missing_key_response.status_code == 400
+    assert "API key is required" in missing_key_response.text
     assert response.status_code == 200
     assert "live approval completed" in response.text
     assert "approval_recovery_ended" not in response.text
@@ -956,19 +998,19 @@ def test_live_approval_resume_reuses_saved_provider_and_continues_loop(tmp_path:
         {
             "base_url": "https://njusehub.info/v1",
             "model": "glm-5.2",
-            "api_key": "stored-live-secret",
+            "api_key": "first-one-time-secret",
             "timeout": 30.0,
         },
         {
             "base_url": "https://njusehub.info/v1",
             "model": "glm-5.2",
-            "api_key": "stored-live-secret",
+            "api_key": "fresh-approval-secret",
             "timeout": 30.0,
         },
     ]
 
 
-def test_live_approval_resume_reuses_unsaved_submitted_key_without_persisting_it(tmp_path: Path, monkeypatch):
+def test_live_approval_resume_requires_fresh_one_time_key_without_persisting_it(tmp_path: Path, monkeypatch):
     credentials = _FakeCredentials(None)
     constructed = []
     responses = [
@@ -1000,14 +1042,23 @@ def test_live_approval_resume_reuses_unsaved_submitted_key_without_persisting_it
     store = SQLiteStore(tmp_path / "state.sqlite3", workspace_root=tmp_path)
     waiting = store.list_sessions()[0]
 
-    response = client.post(f"/approvals/{waiting.pending_approval_id}/approve", follow_redirects=True)
+    missing_key_response = client.post(f"/approvals/{waiting.pending_approval_id}/approve", follow_redirects=True)
+    response = client.post(
+        f"/approvals/{waiting.pending_approval_id}/approve",
+        data={"api_key": "fresh-approval-secret"},
+        follow_redirects=True,
+    )
 
     assert waiting_response.status_code == 200
+    assert missing_key_response.status_code == 400
+    assert "API key is required" in missing_key_response.text
     assert response.status_code == 200
     assert "unsaved key resumed" in response.text
     assert credentials.key is None
     assert "temporary-live-secret" not in response.text
+    assert "fresh-approval-secret" not in response.text
     assert "temporary-live-secret" not in (tmp_path / "state.sqlite3").read_bytes().decode("utf-8", errors="ignore")
+    assert "fresh-approval-secret" not in (tmp_path / "state.sqlite3").read_bytes().decode("utf-8", errors="ignore")
     assert constructed == [
         {
             "base_url": "https://njusehub.info/v1",
@@ -1018,7 +1069,7 @@ def test_live_approval_resume_reuses_unsaved_submitted_key_without_persisting_it
         {
             "base_url": "https://njusehub.info/v1",
             "model": "glm-5.2",
-            "api_key": "temporary-live-secret",
+            "api_key": "fresh-approval-secret",
             "timeout": 30.0,
         },
     ]

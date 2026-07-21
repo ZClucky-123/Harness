@@ -75,14 +75,14 @@ guardrail、dispatcher、HITL 与 WebUI 是否能从规约推出可验证行为�
 | 2026-07 | SPEC + PLAN 冷启动复核 | 通过 | 明确 shell 必须 `shell=False`、审批语义拆为三种按钮、跨进程 live provider 不伪装持续上下文。 |
 
 冷启动复核后的文档修订包括：把 `blocked` 标为保留状态、把审批拒绝拆成
-`Deny action` 与 `Stop task`、补充 approval 执行状态、补充 API key 进程内临时保存策略、
+`Deny action` 与 `Stop task`、补充 approval 执行状态、补充 API key 不进入业务持久化数据的策略、
 以及把 CI 入口对齐为 GitHub Actions。
 
 ## 阶段 6：Live Provider 与 WebUI
 
 在本地接入 NJU SE Hub 后，发现真实模型默认返回自然语言，而 harness 主循环只接受 action JSON。这暴露的是 provider 适配层问题，而不是治理机制问题。处理策略是在 `OpenAICompatibleProvider` 中加入明确的 action JSON 输出协议，并清洗常见的 fenced JSON 响应；同时把 WebUI 从固定 MockLLM 扩展为 Mock/Live 双模式，允许用户输入 OpenAI-compatible base URL、model 和 API key。
 
-该变更符合项目要求：API key 仍通过隐藏输入和 OS keyring 管理，不写入源码、审计事件或 session；真实 LLM 调用仍只是单次 provider 能力，agent loop、guardrail、HITL 状态机、反馈分类和工具分发仍由项目代码实现，并继续通过 mock/stub LLM 的确定性测试验证。
+该变更符合项目要求：API key 不写入源码、审计事件或 session；真实 LLM 调用仍只是单次 provider 能力，agent loop、guardrail、HITL 状态机、反馈分类和工具分发仍由项目代码实现，并继续通过 mock/stub LLM 的确定性测试验证。
 
 这个阶段的取舍是：允许真实 provider 参与演示，但不把验收建立在真实 provider 的稳定性上。
 如果 provider 返回自然语言或非法 JSON，系统会产生 parser/provider observation，而不是
@@ -94,15 +94,15 @@ WebUI 原先直接使用 Jinja `tojson` 展示 trace payload，导致中文在�
 
 ## 阶段 8：本地 Agent Console
 
-进一步将 WebUI 拆为 Chat Workspace、Provider Settings、Session Trace、Approvals Queue 和 Guardrail Demo。Provider Settings 只持久化非敏感配置；API key 可由 keyring 管理，也可在当前 FastAPI 进程中临时保存。审批卡片最终拆成 `Approve once`、`Deny action`、`Stop task` 三种明确语义：批准执行本次动作，拒绝动作则让 live provider 带着 `approval_denied` 反馈尝试替代路线，停止任务则结束恢复轮次。Guardrail Demo 给评审者提供一个无需真实 LLM 的确定性机制演示入口，但不放在主导航中。
+进一步将 WebUI 拆为 Chat Workspace、Provider Settings、Session Trace、Approvals Queue 和 Guardrail Demo。Provider Settings 只向服务器持久化非敏感配置；API key 可以在该页填写，但只暂存在当前浏览器 session，避免公网部署把某个访问者的 key 变成全局 server key。审批卡片最终拆成 `Approve once`、`Deny action`、`Stop task` 三种明确语义：批准执行本次动作，拒绝动作则让 live provider 带着 `approval_denied` 反馈尝试替代路线，停止任务则结束恢复轮次。Guardrail Demo 给评审者提供一个无需真实 LLM 的确定性机制演示入口，但不放在主导航中。
 
 ## 阶段 9：Docker 与凭据处理
 
 在 Docker 环境中实测 WebUI 后，发现容器内通常没有可用的桌面 OS keyring。原实现把 Provider Settings 中勾选保存 key 的失败直接暴露为 FastAPI 500，虽然没有泄露 secret，但不符合可演示交付的可用性要求。修复后，keyring 保存失败会回到设置页显示明确错误；同时支持 `GUARDED_HARNESS_API_KEY` 作为 Docker/live provider 的环境变量入口。
 
-进一步的前端验证显示，用户在 Provider Settings 输入 API key 但不勾选保存时，非敏感 provider 配置会保存，key 本身不会被后续 Chat 使用。这一行为虽然安全，但在 Docker 中不实用。最终策略是把未保存的 key 仅保留在当前 FastAPI 进程内：它不进入 `provider.json`、SQLite、审计事件、日志或页面源码，容器重启后自然失效。这样同时满足演示可用性和“API key 不落盘、不入审计”的作业安全要求。
+后续安全复查发现，曾经把未保存 key 保留在 FastAPI 进程内的做法不适合公网共享 WebUI：后续访问者可以在不配置 API key 的情况下复用这个 server 级临时值。最终策略改为 WebUI Provider Settings 只向服务器保存 mode、base URL 和 model；用户输入的 API key 仅留在浏览器 session，live 请求和审批继续时再临时提交。
 
-本轮修复通过新增 Web 集成测试验证：keyring 不可用时不再 500，环境变量 key 可驱动 live provider，Settings 中临时输入的 key 可供当前进程的后续 Chat 使用且不持久化。最终本地验证结果为 `262 passed, 2 skipped`，`compileall src tests` 通过，Docker 镜像在 Docker Desktop 缓存异常后重试构建通过。
+本轮修复通过新增 Web 集成测试验证：keyring 不可用时不再 500，环境变量 key 可驱动 live provider，Settings 不会把提交的 key 保存到 keyring、进程全局变量或持久化文件。最终本地验证结果为 `262 passed, 2 skipped`，`compileall src tests` 通过，Docker 镜像在 Docker Desktop 缓存异常后重试构建通过。
 
 ## 阶段 10：统一配置文件与交互式 CLI
 

@@ -27,7 +27,7 @@ _TEMPLATES.env.filters["pretty_json"] = lambda value: json.dumps(value, ensure_a
 _TEMPLATES.env.filters["markdown"] = lambda value: Markup(_render_markdown(str(value)))
 _DEFAULT_BASE_URL = "https://njusehub.info/v1"
 _DEFAULT_MODEL = "deepseek-v4-flash"
-_STATIC_VERSION = "20260713-loading-ui"
+_STATIC_VERSION = "20260721-browser-key"
 _VALID_MODES = {"mock", "live"}
 _TEMPLATES.env.globals["static_version"] = _STATIC_VERSION
 
@@ -198,6 +198,7 @@ def _conversation_item(store: SQLiteStore, session) -> dict[str, object]:
 def _approval_view(store: SQLiteStore, approval) -> dict[str, object]:
     summary = _approval_summary(approval.action_json)
     session = store.get_session(approval.session_id)
+    provider_settings = _provider_settings_for_session(store, approval.session_id)
     failure_reason = _approval_failure_reason(store, approval)
     approval_state, execution_state, state_title = _approval_state_labels(approval.status)
     return {
@@ -212,6 +213,7 @@ def _approval_view(store: SQLiteStore, approval) -> dict[str, object]:
         "reason": approval.redacted_reason,
         "display_reason": failure_reason or approval.redacted_reason,
         "action_json": approval.redacted_action_json,
+        "requires_live_key": provider_settings is not None and provider_settings["mode"] == "live",
         **summary,
     }
 
@@ -439,16 +441,13 @@ def _render_settings(
 def create_app(store_path: Path | None = None, workspace_root: Path | None = None) -> FastAPI:
     """Create a local, deterministic WebUI backed by a workspace-local store."""
     store, root = _store_for(store_path, workspace_root)
-    live_session_keys: dict[str, str] = {}
-    provider_api_key: str | None = None
     app = FastAPI(title="Guarded Harness")
     app.mount("/static", StaticFiles(directory=str(_PACKAGE_DIR / "static")), name="static")
 
     def has_provider_key() -> bool:
-        return provider_api_key is not None or _credential_configured()
+        return _credential_configured()
 
-    @app.get("/")
-    def index(request: Request):
+    def render_index(request: Request, form_error: str | None = None, status_code: int = 200):
         settings = _load_provider_settings(root)
         credential_configured = has_provider_key()
         conversation_items = _conversation_items(store)
@@ -465,8 +464,14 @@ def create_app(store_path: Path | None = None, workspace_root: Path | None = Non
                 "sidebar_items": conversation_items,
                 "sidebar_groups": _sidebar_groups(conversation_items),
                 "pending_approval_count": _pending_approval_count(store),
+                "form_error": form_error,
             },
+            status_code=status_code,
         )
+
+    @app.get("/")
+    def index(request: Request):
+        return render_index(request)
 
     @app.get("/settings")
     def settings(request: Request):
@@ -481,29 +486,12 @@ def create_app(store_path: Path | None = None, workspace_root: Path | None = Non
         api_key: str = Form(""),
         save_api_key: str | None = Form(None),
     ):
-        nonlocal provider_api_key
         settings = _save_provider_settings(root, mode, base_url, model)
-        submitted_key = api_key.strip()
-        if submitted_key:
-            if save_api_key:
-                try:
-                    _credential_store().set_key(submitted_key)
-                except Exception as exc:
-                    return _render_settings(
-                        request,
-                        store,
-                        root,
-                        settings=settings,
-                        credential_configured=has_provider_key(),
-                        credential_error=f"Could not save API key: {exc}",
-                        status_code=400,
-                    )
-            else:
-                provider_api_key = submitted_key
         return RedirectResponse(url="/", status_code=303)
 
     @app.post("/sessions")
     def start_session(
+        request: Request,
         task: str = Form(...),
         mode: str | None = Form(None),
         base_url: str | None = Form(None),
@@ -517,7 +505,18 @@ def create_app(store_path: Path | None = None, workspace_root: Path | None = Non
         selected_model = model or settings["model"]
         if selected_mode == "live":
             submitted_key = api_key.strip()
-            provider = _live_provider(selected_base_url, selected_model, submitted_key or provider_api_key or "", save_api_key)
+            if not submitted_key:
+                return render_index(
+                    request,
+                    form_error="API key is required for live mode. Add an API key in Provider Settings before using live mode.",
+                    status_code=400,
+                )
+            provider = _live_provider(
+                selected_base_url,
+                selected_model,
+                submitted_key,
+                allow_configured_fallback=False,
+            )
             session = _loop_for_provider(root, store, provider).run(task)
         else:
             session = _finish_loop(root, store, "mock run completed").run(task)
@@ -526,10 +525,6 @@ def create_app(store_path: Path | None = None, workspace_root: Path | None = Non
             session.id,
             {"mode": selected_mode, "base_url": selected_base_url, "model": selected_model},
         )
-        if selected_mode == "live":
-            session_key = api_key.strip() or provider_api_key
-            if session_key:
-                live_session_keys[session.id] = session_key
         return RedirectResponse(url="/", status_code=303)
 
     @app.get("/sessions/{session_id}")
@@ -615,16 +610,16 @@ def create_app(store_path: Path | None = None, workspace_root: Path | None = Non
         )
 
     @app.post("/approvals/{approval_id}/approve")
-    def approve(approval_id: str):
-        return _resume_approval(store, approval_id, approved=True, live_session_keys=live_session_keys)
+    def approve(approval_id: str, api_key: str = Form("")):
+        return _resume_approval(store, approval_id, approved=True, api_key=api_key)
 
     @app.post("/approvals/{approval_id}/deny")
-    def deny(approval_id: str):
-        return _resume_approval(store, approval_id, approved=False, live_session_keys=live_session_keys)
+    def deny(approval_id: str, api_key: str = Form("")):
+        return _resume_approval(store, approval_id, approved=False, api_key=api_key)
 
     @app.post("/approvals/{approval_id}/stop")
     def stop(approval_id: str):
-        return _resume_approval(store, approval_id, approved=False, live_session_keys=live_session_keys, stop_task=True)
+        return _resume_approval(store, approval_id, approved=False, stop_task=True)
 
     @app.post("/approvals/{approval_id}/mark-failed")
     def mark_failed(approval_id: str, reason: str = Form(...)):
@@ -639,17 +634,20 @@ def create_app(store_path: Path | None = None, workspace_root: Path | None = Non
     return app
 
 
-def _live_provider(base_url: str, model: str, api_key: str, save_api_key: str | None) -> OpenAICompatibleProvider:
+def _live_provider(
+    base_url: str,
+    model: str,
+    api_key: str,
+    *,
+    allow_configured_fallback: bool = True,
+) -> OpenAICompatibleProvider:
     credentials = _credential_store()
     config = load_config()
-    resolved_key = api_key.strip() or credentials.get_key() or config.api_key
-    if resolved_key is None:
+    resolved_key = api_key.strip()
+    if not resolved_key and allow_configured_fallback:
+        resolved_key = credentials.get_key() or config.api_key
+    if not resolved_key:
         raise HTTPException(status_code=400, detail="API key is required for live mode")
-    if api_key.strip() and save_api_key:
-        try:
-            credentials.set_key(api_key.strip())
-        except Exception as exc:
-            raise HTTPException(status_code=400, detail=f"Could not save API key: {exc}") from exc
     return OpenAICompatibleProvider(
         base_url.strip() or _DEFAULT_BASE_URL,
         model.strip() or _DEFAULT_MODEL,
@@ -683,7 +681,7 @@ def _resume_approval(
     store: SQLiteStore,
     approval_id: str,
     approved: bool,
-    live_session_keys: dict[str, str] | None = None,
+    api_key: str = "",
     stop_task: bool = False,
 ) -> RedirectResponse:
     try:
@@ -691,11 +689,15 @@ def _resume_approval(
         session = store.get_session(approval.session_id)
         provider_settings = _provider_settings_for_session(store, session.id)
         if not stop_task and provider_settings is not None and provider_settings["mode"] == "live":
-            session_key = (live_session_keys or {}).get(session.id, "")
             loop = _loop_for_provider(
                 session.workspace,
                 store,
-                _live_provider(provider_settings["base_url"], provider_settings["model"], session_key, None),
+                _live_provider(
+                    provider_settings["base_url"],
+                    provider_settings["model"],
+                    api_key,
+                    allow_configured_fallback=False,
+                ),
             )
             continue_after_resolution = True
         else:

@@ -19,7 +19,7 @@ Superpowers 使用、人工决策和验证证据，省略与最终交付无关�
 | CLI | 增加 `harness run`、`demo`、`approvals`、`credentials` 和 `serve`。 | 离线 demo 可展示 guardrail、feedback、hitl；凭据命令不打印 API key。 |
 | WebUI | 增加 Chat Workspace、Provider Settings、Session Trace、Approvals Queue 和 Guardrail Demo。 | 评审者可在浏览器中创建任务、查看轨迹、处理审批和演示确定性 guardrail。 |
 | Live Provider | 接入 NJU SE Hub/OpenAI-compatible endpoint，要求模型输出 action JSON 并清洗 fenced JSON。 | live 模式显式 opt-in；核心治理仍由项目代码和 mock/stub 测试验证。 |
-| Credential Safety | 增加 keyring、`GUARDED_HARNESS_API_KEY`、进程内临时 key 和统一 redaction。 | API key 不写入源码、`provider.json`、SQLite、audit、日志或 HTML；新审批 action 入库前检测 secret。 |
+| Credential Safety | 增加 keyring、`GUARDED_HARNESS_API_KEY`、Web settings 浏览器会话 key 和统一 redaction。 | API key 不写入源码、`provider.json`、SQLite、audit、日志或 HTML；共享 WebUI 不把访问者 key 变成全局 server key。 |
 | UI Polish | 根据截图反馈统一 sidebar、composer、trace、settings、approvals 和 guardrail 页面。 | WebUI 从最小页面整理为一致的本地 agent console。 |
 | Distribution | 增加 Dockerfile、GitHub Actions、README、SPEC_PROCESS 和反思文档。 | GitHub Actions 使用 Python 3.11/3.12 运行安装、`pytest -q` 和 `compileall src tests`。 |
 | Unified Config + Interactive CLI | 统一 CLI/WebUI provider 配置文件，并让 `harness run` 无参数进入交互模式。 | CLI 可读取 `.guarded-harness/provider.json`；交互模式支持 `:mode`、`:approvals`、`:exit`。 |
@@ -125,9 +125,9 @@ Superpowers 使用、人工决策和验证证据，省略与最终交付无关�
 - 测试文件：主要在 `tests/integration/test_web.py` 和 provider/config 相关测试中体现。
 - live provider 测试使用 stub/mock，不依赖真实网络；验证 OpenAI-compatible response 能被
   清洗为 action JSON，非法响应转化为 observation。
-- keyring 不可用、环境变量 key、Settings 临时 key 都有 Web 集成测试覆盖。
-- 关键边界：API key 不写入 `provider.json`、SQLite、audit、日志或 HTML；未保存 key
-  只存在于当前 FastAPI 进程内。
+- keyring 不可用、环境变量 key、Settings 浏览器会话 key、live 临时提交 key 都有 Web 集成测试覆盖。
+- 关键边界：API key 不写入 `provider.json`、SQLite、audit、日志或 HTML；共享 WebUI
+  只在浏览器 session 暂存 Provider Settings 中填写的 key。
 
 **Unified config 与 interactive CLI**
 
@@ -145,10 +145,10 @@ Superpowers 使用、人工决策和验证证据，省略与最终交付无关�
 - Live provider 只能作为可选能力；MockLLM 必须能离线覆盖核心验收。
 - 审批拒绝拆成 `Deny action` 与 `Stop task`，避免一个按钮同时表示“换路线”和“停止任务”。
 - WebUI 不引入大型前端构建系统，采用 FastAPI + Jinja + CSS，降低运行和评审门槛。
-- API key 只允许进入 keyring、环境变量或当前进程内存，不进入持久化业务数据。
+- API key 只允许通过本机 keyring、环境变量或具体 live 请求/审批继续进入 provider，不进入持久化业务数据。
 - Docker 用于复现运行环境；GitHub Actions 用于当前仓库的自动测试。
 - CLI/WebUI 共用 `.guarded-harness/provider.json` 作为非敏感配置文件；API key 继续通过
-  keyring、环境变量或当前进程临时值提供。
+  keyring、环境变量或具体 live 请求/审批继续提供，Web settings 不保存 key。
 - 交互式 CLI 只承诺“一行一个新 session”，不声称实现完整长对话 checkpoint。
 
 ## 阶段交付说明
@@ -213,8 +213,10 @@ Task 12--13 根据截图反馈打磨 WebUI：固定 sidebar、统一 Chat Worksp
 页面统一到同一布局语言。UI 改动均配套 Web 集成测试，避免样式回归。
 
 Task 14 处理 Docker/live provider 凭据体验。容器中通常没有可用 OS keyring，因此增加
-`GUARDED_HARNESS_API_KEY` 和 Provider Settings 临时 key。这个 key 只在当前 FastAPI
-进程内存中使用，不进入持久化配置、SQLite、audit、日志或 HTML。
+`GUARDED_HARNESS_API_KEY`。后续安全复查移除了 Provider Settings 临时 key 复用能力，
+避免公网共享 WebUI 把某个访问者的 key 暂存在 FastAPI 进程中供后续访问者使用。
+为了让助教仍可在公网测试 live mode，Provider Settings 支持浏览器会话 API key；
+该值由前端随 Chat 和审批请求临时提交，不写入服务器全局状态或业务持久化数据。
 
 Task 15 统一配置文件和 CLI 使用方式。`load_config()` 新增 workspace 配置文件读取，
 CLI 的 live/mock 选择可以来自 `.guarded-harness/provider.json`，环境变量仍可覆盖文件。
@@ -242,7 +244,7 @@ base URL、model 和 timeout，API key 继续通过 OS keyring 或环境变量�
 
 - `SessionStatus.BLOCKED` 保留在模型中，但当前主循环实际停止态是 `finished`、`waiting_approval`、`failed` 和 `max_steps`。
 - CLI 的 `approvals approve/deny` 是跨进程恢复入口，只处理已审批动作或拒绝反馈并结束本轮恢复。
-- Web live session 在同一 FastAPI 进程内可以复用已保存或临时输入的 key，审批后继续 provider loop。
+- Web live session 需要浏览器从 Provider Settings 临时提交 API key，才能跨审批继续 provider loop。
 - CLI live mode 可以从 `.guarded-harness/provider.json` 读取 mode/base URL/model/timeout；
   `harness config init` 可以为新 workspace 创建该文件，但不会写入或读取文件中的 API key。
 - shell 执行层不再把字符串交给系统 shell；策略层和执行层都对 shell control syntax fail-closed。
@@ -272,7 +274,7 @@ base URL、model 和 timeout，API key 继续通过 OS keyring 或环境变量�
 
 - 审批语义统一为 `Approve once`、`Deny action`、`Stop task`。
 - shell 语义统一为 argv parsing + `shell=False` + shell control syntax 拒绝。
-- 凭据语义统一为 keyring、环境变量或当前进程内存，不写入业务持久化数据。
+- 凭据语义统一为 keyring、环境变量或具体 live 请求；共享 Web settings 不保存 key。
 - 配置语义统一为 `.guarded-harness/provider.json` 保存非敏感 provider 设置。
 - WebUI 范围统一为 Chat Workspace、Provider Settings、Session Trace、Approvals Queue
   和 Guardrail Demo。

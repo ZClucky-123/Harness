@@ -128,7 +128,7 @@ SQLite 状态库和 provider 配置。交互命令包括 `:help`、`:mode`、`:a
 WebUI 支持新建任务、Provider Settings、session trace、approvals queue、approval card 和最终状态展示。审批卡片提供三个明确动作：`Approve once`、`Deny action`、`Stop task`。Guardrail Demo 保留为可直接访问页面，但不出现在主导航中。
 
 WebUI 采用服务端渲染，避免引入前端构建系统。Chat Workspace 负责启动任务和展示会话；
-Provider Settings 负责 provider mode、base URL、model 与 API key 输入；Session Trace
+Provider Settings 负责 provider mode、base URL 与 model；API key 可以在 settings 页面填写，但只暂存在当前浏览器 session，live 请求或审批继续时临时提交给服务器。Session Trace
 负责展示审计事件和 observation；Approvals Queue 负责集中处理待审批动作；Guardrail
 Demo 用确定性 policy 调用展示机制本身。
 
@@ -256,7 +256,7 @@ Guardrail Demo 检查。
 CLI 和 WebUI 都围绕这组字段工作。加载优先级为：命令行显式选项、环境变量、
 `.guarded-harness/provider.json`、内置默认值。API key 不允许写入该文件。
 
-Docker/Linux 容器中通常没有可用的桌面 OS keyring，因此 live provider 还支持 `GUARDED_HARNESS_API_KEY` 环境变量。WebUI Provider Settings 中未勾选保存的 API key 只保留在当前 FastAPI 进程内，供后续 live Chat 使用；它不写入 `provider.json`、SQLite、审计事件、日志或 HTML，服务重启后失效。
+Docker/Linux 容器中通常没有可用的桌面 OS keyring，因此 CLI/private live provider 还支持 `GUARDED_HARNESS_API_KEY` 环境变量。WebUI Provider Settings 只向服务器保存非敏感 provider 配置；用户填写的 API key 只留在当前浏览器 session，live 请求和审批继续时临时提交，不能变成后续访问者可复用的 server key。
 
 持续集成使用 GitHub Actions，配置文件为 `.github/workflows/ci.yml`。workflow 在
 Python 3.11 和 3.12 上安装 `.[dev]`，运行 `pytest -q`，并执行
@@ -352,7 +352,7 @@ Coding 场景的反馈信号：
 - 真实 LLM 集成可能不稳定。它保持显式 opt-in；provider 必须返回可解析的 action JSON，否则错误会进入 observation 或用户可见错误。
 - WebUI 范围可能膨胀。它被限制为 Chat、Provider Settings、Session Trace、Approvals 和 Guardrail Demo。
 - Policy 规则可能过宽或过窄。规则会明确编码，并通过测试逐步扩展。
-- 跨进程 live provider 对话尚未持久化。CLI 审批恢复只执行已审批动作或记录拒绝反馈并结束本轮；Web live session 仅在同一进程中复用已保存或临时输入的 key 继续。
+- 跨进程 live provider 对话尚未持久化。CLI 审批恢复只执行已审批动作或记录拒绝反馈并结束本轮；Web live session 需要浏览器从 Provider Settings 临时提交 API key，才能跨审批继续 provider loop。
 - SQLite 状态库不是加密 secrets vault；当前策略是拒绝新 secret action 入库，并对历史数据显示时脱敏。
-- 线上演示环境默认不配置真实 provider key，避免把个人 API key 放入公网服务；live provider 验证应在本地或私有环境中配置 key 后进行。
+- 线上演示环境默认不配置真实 provider key，避免把个人 API key 放入公网服务；live provider 验证可由评审者在公网 WebUI 中提交一次性 key，或在本地/私有环境中配置 key 后进行。
 - 冷启动验证记录和 Superpowers 过程产物已归档在 `docs/archive/superpowers/`，根目录保留最终交付文档。

@@ -64,8 +64,8 @@
                       <p>Risk: {{ item.approval.reason }}</p>
                       <pre>{{ item.approval.action_json }}</pre>
                       <div class="approval-actions">
-                        <form action="/approvals/{{ item.approval.id }}/approve" method="post" data-approval-submit="approve"><button type="submit">Approve once</button></form>
-                        <form action="/approvals/{{ item.approval.id }}/deny" method="post" data-approval-submit="deny-action"><button class="deny-action" type="submit">Deny action</button></form>
+                        <form id="approval-approve-{{ item.approval.id }}" action="/approvals/{{ item.approval.id }}/approve" method="post" data-approval-submit="approve">{% if item.approval.requires_live_key %}<input type="hidden" name="api_key" data-browser-api-key>{% endif %}<button type="submit">Approve once</button></form>
+                        <form id="approval-deny-{{ item.approval.id }}" action="/approvals/{{ item.approval.id }}/deny" method="post" data-approval-submit="deny-action">{% if item.approval.requires_live_key %}<input type="hidden" name="api_key" data-browser-api-key>{% endif %}<button class="deny-action" type="submit">Deny action</button></form>
                         <form action="/approvals/{{ item.approval.id }}/stop" method="post" data-approval-submit="stop-task"><button class="stop-task" type="submit">Stop task</button></form>
                       </div>
                     </div>
@@ -84,9 +84,13 @@
     <form class="composer composer-fixed" action="/sessions" method="post">
       <fieldset>
         <input id="task-submit-value" type="hidden">
+        <p class="form-error composer-error{% if not form_error %} hidden{% endif %}" data-composer-error>{{ form_error or "" }}</p>
         <div class="composer-row">
           <textarea id="task" name="task" rows="1" placeholder="Message Guarded Harness..." aria-label="Task" required></textarea>
         </div>
+        {% if settings.mode == "live" %}
+          <input type="hidden" name="api_key" data-browser-api-key>
+        {% endif %}
         <div class="composer-status">
           <span>mode: {{ provider_status }}</span>
           <button class="composer-submit" type="submit" aria-label="Start task">↑</button>
@@ -101,7 +105,22 @@
     const taskSubmitValue = document.querySelector("#task-submit-value");
     const submitButton = document.querySelector(".composer-submit");
     const conversationList = document.querySelector(".conversation-list");
+    const composerError = document.querySelector("[data-composer-error]");
     let isSubmitting = false;
+    function showComposerError(message) {
+      if (!composerError) {
+        return;
+      }
+      composerError.textContent = message;
+      composerError.classList.remove("hidden");
+    }
+    function clearComposerError() {
+      if (!composerError) {
+        return;
+      }
+      composerError.textContent = "";
+      composerError.classList.add("hidden");
+    }
     function appendOptimisticUserMessage(text) {
       if (!conversationList) {
         return;
@@ -152,6 +171,14 @@
       if (!composerForm.checkValidity()) {
         return;
       }
+      fillBrowserApiKeys(composerForm);
+      const apiKeyInput = composerForm.querySelector("[data-browser-api-key]");
+      if (apiKeyInput && !apiKeyInput.value) {
+        event.preventDefault();
+        showComposerError("Add an API key in Provider Settings before using live mode.");
+        return;
+      }
+      clearComposerError();
       taskSubmitValue.name = "task";
       const submittedTask = taskInput.value;
       taskSubmitValue.value = submittedTask;
@@ -194,6 +221,14 @@
           const action = form.dataset.approvalSubmit;
           const title = card.querySelector("[data-approval-title]");
           const status = card.querySelector("[data-approval-status]");
+          fillBrowserApiKeys(form);
+          const apiKeyInput = form.querySelector("[data-browser-api-key]");
+          if (apiKeyInput && !apiKeyInput.value) {
+            approvalSubmitting = false;
+            title.textContent = "Approval failed";
+            status.textContent = "Add an API key in Provider Settings before using live mode.";
+            return;
+          }
           title.textContent = approvalProcessingTitle(action);
           status.textContent = approvalProcessingStatus(action);
           card.querySelectorAll("button").forEach((button) => {
@@ -228,6 +263,12 @@
         });
       });
     });
+    function fillBrowserApiKeys(root = document) {
+      const browserKey = sessionStorage.getItem("guarded-harness:web-api-key") || "";
+      root.querySelectorAll("[data-browser-api-key]").forEach((input) => {
+        input.value = browserKey;
+      });
+    }
     window.scrollTo({ top: document.body.scrollHeight, behavior: "instant" });
   </script>
   {% include "_history_refresh.html" %}
